@@ -113,7 +113,17 @@ NAN_METHOD(Client::GetResult) {
     // After the last row, or immediately if the query returns zero rows,
     // a zero-row object with status PGRES_TUPLES_OK is returned; this is
     // the signal that no more rows will arrive.
+
     PQclear(result);
+
+    result = PQgetResult(client->connection_);
+
+    if (result != nullptr) {
+      client->SetLastError();
+      PQclear(result);
+      Nan::ThrowError(client->lastError_.c_str());
+      return;
+    }
 
     info.GetReturnValue().SetNull();
 

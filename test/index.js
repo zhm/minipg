@@ -1,13 +1,23 @@
-var Client = require('../');
+var createPool = require('../').createPool;
 var assert = require('assert');
 var fs = require('fs');
 var path = require('path');
 
+var db = 'dbname = postgres';
 var sql = fs.readFileSync(path.join(__dirname, 'test.sql'));
 
+var pool = createPool({db: db});
+
 var execSQL = function (db, command, callback) {
-  var client = new Client().connect(db);
-  client.query(command).each(callback);
+  pool.acquire(function (err, client) {
+    client.query(command).each(function(err, row, index) {
+      callback(err, row, index);
+
+      if (row == null) {
+        pool.release(client);
+      }
+    });
+  });
 };
 
 describe('minipg', function () {

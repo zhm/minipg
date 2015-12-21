@@ -1,4 +1,5 @@
 var NativeClient = require('bindings')('addon').Client;
+var genericPool = require('generic-pool');
 
 function Client() {
   this.nativeClient = new NativeClient();
@@ -51,4 +52,22 @@ Client.prototype.close = function () {
   return this.nativeClient.close();
 };
 
-module.exports = Client;
+function createPool(options) {
+  return genericPool.Pool({
+    name: options.name || 'minipg',
+    create: function (callback) {
+      callback(null, new Client().connect(options.db));
+    },
+    destroy: function (client) {
+      client.close();
+    },
+    max: options.max || 10,
+    idleTimeoutMillis: options.idleTimeoutMillis || 30000,
+    log: options.log
+  });
+}
+
+module.exports = {
+  Client: Client,
+  createPool: createPool
+};
