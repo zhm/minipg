@@ -109,11 +109,14 @@ NAN_METHOD(Client::GetResult) {
 
   client->SetLastError();
 
-  if (PQresultStatus(result) == PGRES_TUPLES_OK && PQntuples(result) == 0) {
-    // After the last row, or immediately if the query returns zero rows,
-    // a zero-row object with status PGRES_TUPLES_OK is returned; this is
-    // the signal that no more rows will arrive.
+  ExecStatusType status = PQresultStatus(result);
 
+  if (status == PGRES_EMPTY_QUERY ||
+      status == PGRES_COMMAND_OK ||
+      status == PGRES_TUPLES_OK ||
+      status == PGRES_BAD_RESPONSE ||
+      status == PGRES_NONFATAL_ERROR ||
+      status == PGRES_FATAL_ERROR) {
     PQclear(result);
 
     result = PQgetResult(client->connection_);
@@ -130,7 +133,7 @@ NAN_METHOD(Client::GetResult) {
     return;
   }
 
-  if (PQresultStatus(result) == PGRES_SINGLE_TUPLE) {
+  if (status == PGRES_SINGLE_TUPLE) {
     int fieldCount = PQnfields(result);
 
     auto resultObject = Nan::New<v8::Object>();
