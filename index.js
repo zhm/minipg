@@ -20,6 +20,16 @@ Client.prototype.query = function (sql) {
   cursor.columns = null;
 
   cursor.each = function (callback) {
+    cursor.next(function (err, row, index) {
+      callback(err, row, index);
+
+      if (row) {
+        cursor.each(callback);
+      }
+    });
+  }.bind(this);
+
+  cursor.next = function (callback) {
     var returnMetadata = (cursor.index === -1);
 
     this.getResult(returnMetadata, function (row) {
@@ -32,10 +42,6 @@ Client.prototype.query = function (sql) {
       }
 
       callback(nativeClient.lastError(), row, cursor.index);
-
-      if (row) {
-        cursor.each(callback);
-      }
     });
   }.bind(this);
 
