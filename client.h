@@ -23,11 +23,17 @@ private:
 
   static NAN_METHOD(Close);
 
+  static NAN_METHOD(LastError);
+
   static Nan::Persistent<v8::Function> constructor;
 
   void Close();
 
+  void SetLastError();
+
   PGconn *connection_;
+
+  std::string lastError_;
 };
 
 #endif

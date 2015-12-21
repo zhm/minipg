@@ -20,6 +20,7 @@ void Client::Init(v8::Local<v8::Object> exports) {
   Nan::SetPrototypeMethod(tpl, "query", Query);
   Nan::SetPrototypeMethod(tpl, "close", Close);
   Nan::SetPrototypeMethod(tpl, "getResult", GetResult);
+  Nan::SetPrototypeMethod(tpl, "lastError", LastError);
 
   constructor.Reset(tpl->GetFunction());
 
@@ -46,10 +47,11 @@ NAN_METHOD(Client::Connect) {
 
   client->connection_ = PQconnectdb(connectionString.c_str());
 
+  client->SetLastError();
+
   if (PQstatus(client->connection_) != CONNECTION_OK) {
-    std::string error = PQerrorMessage(client->connection_);
     client->Close();
-    Nan::ThrowError(error.c_str());
+    Nan::ThrowError(client->lastError_.c_str());
     return;
   }
 
@@ -64,6 +66,12 @@ NAN_METHOD(Client::Close) {
   info.GetReturnValue().Set(info.This());
 }
 
+NAN_METHOD(Client::LastError) {
+  Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
+
+  info.GetReturnValue().Set(Nan::New(client->lastError_).ToLocalChecked());
+}
+
 NAN_METHOD(Client::Query) {
   Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
 
@@ -71,19 +79,17 @@ NAN_METHOD(Client::Query) {
 
   int result = PQsendQuery(client->connection_, command.c_str());
 
+  client->SetLastError();
+
   if (result != 1) {
-    const char *error = PQerrorMessage(client->connection_);
-    client->Close();
-    Nan::ThrowError(error);
+    Nan::ThrowError(client->lastError_.c_str());
     return;
   }
 
   result = PQsetSingleRowMode(client->connection_);
 
   if (result != 1) {
-    const char *error = PQerrorMessage(client->connection_);
-    client->Close();
-    Nan::ThrowError(error);
+    Nan::ThrowError(client->lastError_.c_str());
     return;
   }
 
@@ -101,13 +107,15 @@ NAN_METHOD(Client::GetResult) {
     returnMetadata = Nan::To<bool>(info[0]).FromMaybe(false);
   }
 
+  client->SetLastError();
+
   if (PQresultStatus(result) == PGRES_TUPLES_OK && PQntuples(result) == 0) {
     // After the last row, or immediately if the query returns zero rows,
     // a zero-row object with status PGRES_TUPLES_OK is returned; this is
     // the signal that no more rows will arrive.
     PQclear(result);
 
-    info.GetReturnValue().Set(Nan::Null());
+    info.GetReturnValue().SetNull();
 
     return;
   }
@@ -173,5 +181,11 @@ void Client::Close() {
   if (connection_) {
     PQfinish(connection_);
     connection_ = nullptr;
+  }
+}
+
+void Client::SetLastError() {
+  if (connection_) {
+    lastError_ = PQerrorMessage(connection_);
   }
 }

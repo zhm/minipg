@@ -13,6 +13,7 @@ Client.prototype.query = function (sql) {
   this.nativeClient.query(sql);
 
   var cursor = {};
+  var nativeClient = this.nativeClient;
 
   cursor.index = -1;
   cursor.columns = null;
@@ -21,7 +22,7 @@ Client.prototype.query = function (sql) {
     var returnMetadata = (cursor.index === -1);
 
     this.getResult(returnMetadata, function (row) {
-      if (returnMetadata) {
+      if (returnMetadata && row) {
         cursor.columns = row.columns;
       }
 
@@ -29,7 +30,7 @@ Client.prototype.query = function (sql) {
         cursor.index += 1;
       }
 
-      callback(row, cursor.index);
+      callback(nativeClient.lastError(), row, cursor.index);
 
       if (row) {
         cursor.each(callback);
