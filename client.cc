@@ -21,6 +21,7 @@ void Client::Init(v8::Local<v8::Object> exports) {
   Nan::SetPrototypeMethod(tpl, "close", Close);
   Nan::SetPrototypeMethod(tpl, "getResult", GetResult);
   Nan::SetPrototypeMethod(tpl, "lastError", LastError);
+  Nan::SetPrototypeMethod(tpl, "finished", IsFinished);
 
   constructor.Reset(tpl->GetFunction());
 
@@ -72,10 +73,18 @@ NAN_METHOD(Client::LastError) {
   info.GetReturnValue().Set(Nan::New(client->lastError_).ToLocalChecked());
 }
 
+NAN_METHOD(Client::IsFinished) {
+  Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
+
+  info.GetReturnValue().Set(Nan::New(client->finished_));
+}
+
 NAN_METHOD(Client::Query) {
   Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
 
   std::string command = *Nan::Utf8String(info[0]);
+
+  client->finished_ = false;
 
   int result = PQsendQuery(client->connection_, command.c_str());
 
@@ -101,6 +110,12 @@ NAN_METHOD(Client::GetResult) {
 
   PGresult *result = PQgetResult(client->connection_);
 
+  if (result == nullptr) {
+    client->finished_ = true;
+    info.GetReturnValue().SetNull();
+    return;
+  }
+
   bool returnMetadata = false;
 
   if (!info[0]->IsUndefined()) {
@@ -111,82 +126,48 @@ NAN_METHOD(Client::GetResult) {
 
   ExecStatusType status = PQresultStatus(result);
 
-  if (status == PGRES_EMPTY_QUERY ||
-      status == PGRES_COMMAND_OK ||
-      status == PGRES_TUPLES_OK ||
-      status == PGRES_BAD_RESPONSE ||
-      status == PGRES_NONFATAL_ERROR ||
-      status == PGRES_FATAL_ERROR) {
-    PQclear(result);
-
-    result = PQgetResult(client->connection_);
-
-    if (result != nullptr) {
-      client->SetLastError();
+  switch (status) {
+    case PGRES_EMPTY_QUERY:
+    case PGRES_COMMAND_OK:
       PQclear(result);
-      Nan::ThrowError(client->lastError_.c_str());
-      return;
+      info.GetReturnValue().SetNull();
+      break;
+
+    case PGRES_BAD_RESPONSE:
+    case PGRES_NONFATAL_ERROR:
+    case PGRES_FATAL_ERROR:
+      PQclear(result);
+      info.GetReturnValue().SetNull();
+      break;
+
+    case PGRES_TUPLES_OK:
+      // If the query returns any rows, they are returned as individual PGresult objects, which look
+      // like normal query results except for having status code PGRES_SINGLE_TUPLE instead of
+      // PGRES_TUPLES_OK. After the last row, or immediately if the query returns zero rows, a
+      // zero-row object with status PGRES_TUPLES_OK is returned; this is the signal that no more
+      // rows will arrive. (But note that it is still necessary to continue calling PQgetResult
+      // until it returns null.)
+      //
+      // ref: http://www.postgresql.org/docs/9.4/static/libpq-single-row-mode.html
+      PQclear(result);
+      info.GetReturnValue().SetNull();
+      break;
+
+    case PGRES_SINGLE_TUPLE: {
+      auto resultObject = CreateResult(result, returnMetadata);
+
+      PQclear(result);
+
+      info.GetReturnValue().Set(resultObject);
+      break;
     }
 
-    info.GetReturnValue().SetNull();
-
-    return;
-  }
-
-  if (status == PGRES_SINGLE_TUPLE) {
-    int fieldCount = PQnfields(result);
-
-    auto resultObject = Nan::New<v8::Object>();
-    auto columns = Nan::New<v8::Array>();
-    auto row = Nan::New<v8::Array>();
-
-    for (int i = 0; i < fieldCount; ++i) {
-      if (returnMetadata) {
-        auto column = Nan::New<v8::Object>();
-
-        const char *columnName = PQfname(result, i);
-        Oid columnType = PQftype(result, i);
-        int columnMod = PQfmod(result, i);
-        int columnSize = PQfsize(result, i);
-        /* int length = PQgetlength(result, 0, i); */
-
-        Nan::Set(column, Nan::New("name").ToLocalChecked(),
-                         Nan::New(columnName).ToLocalChecked());
-
-        Nan::Set(column, Nan::New("type").ToLocalChecked(),
-                         Nan::New(columnType));
-
-        Nan::Set(column, Nan::New("mod").ToLocalChecked(),
-                         Nan::New(columnMod));
-
-        Nan::Set(column, Nan::New("size").ToLocalChecked(),
-                         Nan::New(columnSize));
-
-        Nan::Set(columns, i, column);
-      }
-
-      int isNull = PQgetisnull(result, 0, i);
-      const char *value = PQgetvalue(result, 0, i);
-
-      if (isNull) {
-        Nan::Set(row, i, Nan::Null());
-      }
-      else {
-        Nan::Set(row, i, Nan::New(value).ToLocalChecked());
-      }
-    }
-
-    PQclear(result);
-
-    if (returnMetadata) {
-      Nan::Set(resultObject, Nan::New("columns").ToLocalChecked(), columns);
-    }
-
-    Nan::Set(resultObject, Nan::New("row").ToLocalChecked(), row);
-
-    info.GetReturnValue().Set(resultObject);
-
-    return;
+    case PGRES_COPY_OUT:
+    case PGRES_COPY_IN:
+    case PGRES_COPY_BOTH:
+      PQclear(result);
+      info.GetReturnValue().SetNull();
+      break;
   }
 }
 
@@ -201,4 +182,56 @@ void Client::SetLastError() {
   if (connection_) {
     lastError_ = PQerrorMessage(connection_);
   }
+}
+
+v8::Local<v8::Object> Client::CreateResult(PGresult *result, bool includeMetadata) {
+  int fieldCount = PQnfields(result);
+
+  auto resultObject = Nan::New<v8::Object>();
+  auto columns = Nan::New<v8::Array>();
+  auto values = Nan::New<v8::Array>();
+
+  for (int i = 0; i < fieldCount; ++i) {
+    if (includeMetadata) {
+      auto column = Nan::New<v8::Object>();
+
+      const char *columnName = PQfname(result, i);
+      Oid columnType = PQftype(result, i);
+      int columnMod = PQfmod(result, i);
+      int columnSize = PQfsize(result, i);
+      /* int length = PQgetlength(result, 0, i); */
+
+      Nan::Set(column, Nan::New("name").ToLocalChecked(),
+                       Nan::New(columnName).ToLocalChecked());
+
+      Nan::Set(column, Nan::New("type").ToLocalChecked(),
+                       Nan::New(columnType));
+
+      Nan::Set(column, Nan::New("mod").ToLocalChecked(),
+                       Nan::New(columnMod));
+
+      Nan::Set(column, Nan::New("size").ToLocalChecked(),
+                       Nan::New(columnSize));
+
+      Nan::Set(columns, i, column);
+    }
+
+    int isNull = PQgetisnull(result, 0, i);
+    const char *value = PQgetvalue(result, 0, i);
+
+    if (isNull) {
+      Nan::Set(values, i, Nan::Null());
+    }
+    else {
+      Nan::Set(values, i, Nan::New(value).ToLocalChecked());
+    }
+  }
+
+  if (includeMetadata) {
+    Nan::Set(resultObject, Nan::New("columns").ToLocalChecked(), columns);
+  }
+
+  Nan::Set(resultObject, Nan::New("values").ToLocalChecked(), values);
+
+  return resultObject;
 }

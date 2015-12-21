@@ -20,10 +20,10 @@ Client.prototype.query = function (sql) {
   cursor.columns = null;
 
   cursor.each = function (callback) {
-    cursor.next(function (err, row, index) {
-      callback(err, row, index);
+    cursor.next(function (err, finished, row, index) {
+      callback(err, finished, row, index);
 
-      if (row) {
+      if (!finished) {
         cursor.each(callback);
       }
     });
@@ -39,11 +39,16 @@ Client.prototype.query = function (sql) {
 
       if (row) {
         cursor.index += 1;
+        row.columns = cursor.columns;
       }
 
-      callback(nativeClient.lastError(), row, cursor.index);
+      callback(nativeClient.lastError(), nativeClient.finished(), row, cursor.index);
     });
   }.bind(this);
+
+  cursor.finished = function () {
+    return nativeClient.finished();
+  };
 
   return cursor;
 };

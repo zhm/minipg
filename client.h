@@ -23,6 +23,8 @@ private:
 
   static NAN_METHOD(Close);
 
+  static NAN_METHOD(IsFinished);
+
   static NAN_METHOD(LastError);
 
   static Nan::Persistent<v8::Function> constructor;
@@ -31,9 +33,13 @@ private:
 
   void SetLastError();
 
+  static v8::Local<v8::Object> CreateResult(PGresult *result, bool includeMetadata);
+
   PGconn *connection_;
 
   std::string lastError_;
+
+  bool finished_;
 };
 
 #endif

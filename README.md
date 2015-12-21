@@ -20,7 +20,11 @@ var client = new Client().connect('dbname = postgres');
 var sql = 'SELECT generate_series(1, 4000000000)';
 
 // query an essentially infinite series of results
-client.query(sql).each(function(row, index) {
+client.query(sql).each(function(err, finished, row, index) {
+  // `err` is a possible error message
+  // `finished` indicates that the iteration is complete
+  // `row` is the row object with the row data in it
+  // `index` is the index of this row in the result set
   console.log(index);
 
   if (row == null) {
