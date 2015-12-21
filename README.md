@@ -15,7 +15,7 @@ npm install minipg
 ```js
 var Client = require('minipg').Client;
 
-var client = new Client().connect(db);
+var client = new Client().connect('dbname = postgres');
 
 var sql = 'SELECT generate_series(1, 4000000000)';
 
