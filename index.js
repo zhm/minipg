@@ -54,7 +54,7 @@ Client.prototype.query = function (sql) {
 };
 
 Client.prototype.getResult = function (returnMetadata, callback) {
-  process.nextTick(function () {
+  setImmediate(function () {
     callback(this.nativeClient.getResult(returnMetadata));
   }.bind(this));
 };
