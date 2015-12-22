@@ -32,7 +32,7 @@ Client.prototype.query = function (sql) {
   cursor.next = function (callback) {
     var returnMetadata = (cursor.index === -1);
 
-    this.getResult(returnMetadata, cursor.index, function (row) {
+    this.getResult(returnMetadata, function (row) {
       if (returnMetadata && row) {
         cursor.columns = row.columns;
       }
@@ -53,13 +53,8 @@ Client.prototype.query = function (sql) {
   return cursor;
 };
 
-Client.prototype.getResult = function (returnMetadata, index, callback) {
-  // every 100 rows use setImmediate so some IO gets a chance, this balances
-  // pure single threaded performance with letting some IO interrupt for new
-  // requests to start up.
-  var dispatch = (index % 100 === 0) ? setImmediate : process.nextTick;
-
-  dispatch(function () {
+Client.prototype.getResult = function (returnMetadata, callback) {
+  setImmediate(function () {
     callback(this.nativeClient.getResult(returnMetadata));
   }.bind(this));
 };
