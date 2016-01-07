@@ -20,8 +20,8 @@ Client.prototype.query = function (sql) {
   cursor.columns = null;
 
   cursor.each = function (callback) {
-    cursor.next(function (err, finished, row, index) {
-      callback(err, finished, row, index);
+    cursor.next(function (err, finished, columns, row, index) {
+      callback(err, finished, columns, row, index);
 
       if (!finished) {
         cursor.each(callback);
@@ -32,17 +32,18 @@ Client.prototype.query = function (sql) {
   cursor.next = function (callback) {
     var returnMetadata = (cursor.index === -1);
 
-    this.getResult(returnMetadata, function (row) {
-      if (returnMetadata && row) {
-        cursor.columns = row.columns;
+    this.getResult(returnMetadata, function (result) {
+      if (returnMetadata && result && result.columns) {
+        cursor.columns = result.columns;
       }
 
-      if (row) {
+      if (result && result.values) {
         cursor.index += 1;
-        row.columns = cursor.columns;
       }
 
-      callback(nativeClient.lastError(), nativeClient.finished(), row, cursor.index);
+      var values = result ? result.values : null;
+
+      callback(nativeClient.lastError(), nativeClient.finished(), cursor.columns, values, cursor.index);
     });
   }.bind(this);
 

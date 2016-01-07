@@ -33,7 +33,7 @@ private:
 
   void SetLastError();
 
-  static v8::Local<v8::Object> CreateResult(PGresult *result, bool includeMetadata);
+  static v8::Local<v8::Object> CreateResult(PGresult *result, bool includeValues, bool includeMetadata);
 
   PGconn *connection_;
 

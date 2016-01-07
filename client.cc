@@ -140,7 +140,7 @@ NAN_METHOD(Client::GetResult) {
       info.GetReturnValue().SetNull();
       break;
 
-    case PGRES_TUPLES_OK:
+    case PGRES_TUPLES_OK: {
       // If the query returns any rows, they are returned as individual PGresult objects, which look
       // like normal query results except for having status code PGRES_SINGLE_TUPLE instead of
       // PGRES_TUPLES_OK. After the last row, or immediately if the query returns zero rows, a
@@ -149,12 +149,16 @@ NAN_METHOD(Client::GetResult) {
       // until it returns null.)
       //
       // ref: http://www.postgresql.org/docs/9.4/static/libpq-single-row-mode.html
+      auto resultObject = CreateResult(result, false, returnMetadata);
+
       PQclear(result);
-      info.GetReturnValue().SetNull();
+
+      info.GetReturnValue().Set(resultObject);
       break;
+    }
 
     case PGRES_SINGLE_TUPLE: {
-      auto resultObject = CreateResult(result, returnMetadata);
+      auto resultObject = CreateResult(result, true, returnMetadata);
 
       PQclear(result);
 
@@ -184,7 +188,7 @@ void Client::SetLastError() {
   }
 }
 
-v8::Local<v8::Object> Client::CreateResult(PGresult *result, bool includeMetadata) {
+v8::Local<v8::Object> Client::CreateResult(PGresult *result, bool includeValues, bool includeMetadata) {
   int fieldCount = PQnfields(result);
 
   auto resultObject = Nan::New<v8::Object>();
@@ -216,14 +220,16 @@ v8::Local<v8::Object> Client::CreateResult(PGresult *result, bool includeMetadat
       Nan::Set(columns, i, column);
     }
 
-    int isNull = PQgetisnull(result, 0, i);
-    const char *value = PQgetvalue(result, 0, i);
+    if (includeValues) {
+      int isNull = PQgetisnull(result, 0, i);
+      const char *value = PQgetvalue(result, 0, i);
 
-    if (isNull) {
-      Nan::Set(values, i, Nan::Null());
-    }
-    else {
-      Nan::Set(values, i, Nan::New(value).ToLocalChecked());
+      if (isNull) {
+        Nan::Set(values, i, Nan::Null());
+      }
+      else {
+        Nan::Set(values, i, Nan::New(value).ToLocalChecked());
+      }
     }
   }
 
@@ -231,7 +237,9 @@ v8::Local<v8::Object> Client::CreateResult(PGresult *result, bool includeMetadat
     Nan::Set(resultObject, Nan::New("columns").ToLocalChecked(), columns);
   }
 
-  Nan::Set(resultObject, Nan::New("values").ToLocalChecked(), values);
+  if (includeValues) {
+    Nan::Set(resultObject, Nan::New("values").ToLocalChecked(), values);
+  }
 
   return resultObject;
 }
