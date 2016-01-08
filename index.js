@@ -43,7 +43,21 @@ Client.prototype.query = function (sql) {
 
       var values = result ? result.values : null;
 
-      callback(nativeClient.lastError(), nativeClient.finished(), cursor.columns, values, cursor.index);
+      var error = nativeClient.lastError();
+
+      if (error) {
+        var queryError = new Error();
+
+        for (var prop in error) {
+          if (error.hasOwnProperty(prop)) {
+            queryError[prop] = error[prop];
+          }
+        }
+
+        error = queryError;
+      }
+
+      callback(error, nativeClient.finished(), cursor.columns, values, cursor.index);
     });
   }.bind(this);
 

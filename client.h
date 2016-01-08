@@ -1,6 +1,8 @@
 #ifndef __CLIENT_H__
 #define __CLIENT_H__
 
+#include <map>
+
 #include <libpq-fe.h>
 #include <nan.h>
 
@@ -31,13 +33,17 @@ private:
 
   void Close();
 
-  void SetLastError();
+  void SetLastError(PGresult *result);
+
+  void SetResultErrorField(const char *key, const PGresult *result, int fieldCode);
 
   static v8::Local<v8::Object> CreateResult(PGresult *result, bool includeValues, bool includeMetadata);
 
   PGconn *connection_;
 
-  std::string lastError_;
+  std::string lastErrorMessage_;
+
+  std::map<std::string, std::string> lastError_;
 
   bool finished_;
 };

@@ -1,4 +1,5 @@
 #include "client.h"
+#include <iostream>
 
 Nan::Persistent<v8::Function> Client::constructor;
 
@@ -48,11 +49,11 @@ NAN_METHOD(Client::Connect) {
 
   client->connection_ = PQconnectdb(connectionString.c_str());
 
-  client->SetLastError();
+  client->SetLastError(nullptr);
 
   if (PQstatus(client->connection_) != CONNECTION_OK) {
     client->Close();
-    Nan::ThrowError(client->lastError_.c_str());
+    Nan::ThrowError(client->lastErrorMessage_.c_str());
     return;
   }
 
@@ -70,7 +71,28 @@ NAN_METHOD(Client::Close) {
 NAN_METHOD(Client::LastError) {
   Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
 
-  info.GetReturnValue().Set(Nan::New(client->lastError_).ToLocalChecked());
+  if (client->lastErrorMessage_.empty()) {
+    info.GetReturnValue().SetNull();
+  }
+  else {
+    auto errorObject = Nan::New<v8::Object>();
+
+    for (auto const &entry : client->lastError_) {
+      auto &key = entry.first;
+      auto &value = entry.second;
+
+      if (!value.empty()) {
+        Nan::Set(errorObject, Nan::New(key).ToLocalChecked(),
+                              Nan::New(entry.second).ToLocalChecked());
+      }
+      else {
+        Nan::Set(errorObject, Nan::New(key).ToLocalChecked(),
+                              Nan::Null());
+      }
+    }
+
+    info.GetReturnValue().Set(errorObject);
+  }
 }
 
 NAN_METHOD(Client::IsFinished) {
@@ -88,17 +110,17 @@ NAN_METHOD(Client::Query) {
 
   int result = PQsendQuery(client->connection_, command.c_str());
 
-  client->SetLastError();
+  client->SetLastError(nullptr);
 
   if (result != 1) {
-    Nan::ThrowError(client->lastError_.c_str());
+    Nan::ThrowError(client->lastErrorMessage_.c_str());
     return;
   }
 
   result = PQsetSingleRowMode(client->connection_);
 
   if (result != 1) {
-    Nan::ThrowError(client->lastError_.c_str());
+    Nan::ThrowError(client->lastErrorMessage_.c_str());
     return;
   }
 
@@ -122,7 +144,7 @@ NAN_METHOD(Client::GetResult) {
     returnMetadata = Nan::To<bool>(info[0]).FromMaybe(false);
   }
 
-  client->SetLastError();
+  client->SetLastError(result);
 
   ExecStatusType status = PQresultStatus(result);
 
@@ -182,10 +204,43 @@ void Client::Close() {
   }
 }
 
-void Client::SetLastError() {
-  if (connection_) {
-    lastError_ = PQerrorMessage(connection_);
+inline void Client::SetResultErrorField(const char *key, const PGresult *result, int fieldCode) {
+  char *errorValue = NULL;
+
+  if (result) {
+    errorValue = PQresultErrorField(result, fieldCode);
   }
+
+  lastError_[key] = errorValue ? errorValue : "";
+}
+
+void Client::SetLastError(PGresult *result) {
+  if (connection_) {
+    lastErrorMessage_ = PQerrorMessage(connection_);
+  }
+  else {
+    lastErrorMessage_ = "";
+  }
+
+  lastError_["message"] = lastErrorMessage_;
+
+  SetResultErrorField("severity", result, PG_DIAG_SEVERITY);
+  SetResultErrorField("sqlState", result, PG_DIAG_SQLSTATE);
+  SetResultErrorField("messagePrimary", result, PG_DIAG_MESSAGE_PRIMARY);
+  SetResultErrorField("messageDetail", result, PG_DIAG_MESSAGE_DETAIL);
+  SetResultErrorField("messageHint", result, PG_DIAG_MESSAGE_HINT);
+  SetResultErrorField("statementPosition", result, PG_DIAG_STATEMENT_POSITION);
+  SetResultErrorField("internalPosition", result, PG_DIAG_INTERNAL_POSITION);
+  SetResultErrorField("internalQuery", result, PG_DIAG_INTERNAL_QUERY);
+  SetResultErrorField("context", result, PG_DIAG_CONTEXT);
+  SetResultErrorField("schemaName", result, PG_DIAG_SCHEMA_NAME);
+  SetResultErrorField("tableName", result, PG_DIAG_TABLE_NAME);
+  SetResultErrorField("columnName", result, PG_DIAG_COLUMN_NAME);
+  SetResultErrorField("dataTypeName", result, PG_DIAG_DATATYPE_NAME);
+  SetResultErrorField("constraintName", result, PG_DIAG_CONSTRAINT_NAME);
+  SetResultErrorField("sourceFile", result, PG_DIAG_SOURCE_FILE);
+  SetResultErrorField("sourceLine", result, PG_DIAG_SOURCE_LINE);
+  SetResultErrorField("sourceFunction", result, PG_DIAG_SOURCE_FUNCTION);
 }
 
 v8::Local<v8::Object> Client::CreateResult(PGresult *result, bool includeValues, bool includeMetadata) {
