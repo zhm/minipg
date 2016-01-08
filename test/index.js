@@ -43,9 +43,9 @@ describe('minipg', function () {
         assert.equal(values, null);
         assert.equal(index, -1);
         assert.equal(err.message, 'ERROR:  syntax error at or near "sele"\nLINE 1: sele\n        ^\n');
-        assert.equal(err.messagePrimary, 'syntax error at or near "sele"');
+        assert.equal(err.primary, 'syntax error at or near "sele"');
         assert.equal(err.severity, 'ERROR');
-        assert.equal(err.statementPosition, '1');
+        assert.equal(err.position, '1');
         done();
       }
     });

@@ -1,5 +1,4 @@
 #include "client.h"
-#include <iostream>
 
 Nan::Persistent<v8::Function> Client::constructor;
 
@@ -171,6 +170,10 @@ NAN_METHOD(Client::GetResult) {
       // until it returns null.)
       //
       // ref: http://www.postgresql.org/docs/9.4/static/libpq-single-row-mode.html
+      //
+      // we still want to create a result object so that we can capture the column structure for queries
+      // that return 0 rows. If we just hand "null" back to the caller they can't build a correct empty
+      // result set.
       auto resultObject = CreateResult(result, false, returnMetadata);
 
       PQclear(result);
@@ -205,42 +208,38 @@ void Client::Close() {
 }
 
 inline void Client::SetResultErrorField(const char *key, const PGresult *result, int fieldCode) {
-  char *errorValue = NULL;
+  const char *errorValue = PQresultErrorField(result, fieldCode);
 
-  if (result) {
-    errorValue = PQresultErrorField(result, fieldCode);
-  }
-
-  lastError_[key] = errorValue ? errorValue : "";
+  lastError_[key] = errorValue ? std::string(errorValue) : "";
 }
 
 void Client::SetLastError(PGresult *result) {
-  if (connection_) {
-    lastErrorMessage_ = PQerrorMessage(connection_);
+  if (result) {
+    lastErrorMessage_ = PQresultErrorMessage(result);
   }
   else {
-    lastErrorMessage_ = "";
+    lastErrorMessage_ = PQerrorMessage(connection_);
   }
 
   lastError_["message"] = lastErrorMessage_;
 
   SetResultErrorField("severity", result, PG_DIAG_SEVERITY);
-  SetResultErrorField("sqlState", result, PG_DIAG_SQLSTATE);
-  SetResultErrorField("messagePrimary", result, PG_DIAG_MESSAGE_PRIMARY);
-  SetResultErrorField("messageDetail", result, PG_DIAG_MESSAGE_DETAIL);
-  SetResultErrorField("messageHint", result, PG_DIAG_MESSAGE_HINT);
-  SetResultErrorField("statementPosition", result, PG_DIAG_STATEMENT_POSITION);
+  SetResultErrorField("state", result, PG_DIAG_SQLSTATE);
+  SetResultErrorField("primary", result, PG_DIAG_MESSAGE_PRIMARY);
+  SetResultErrorField("detail", result, PG_DIAG_MESSAGE_DETAIL);
+  SetResultErrorField("hint", result, PG_DIAG_MESSAGE_HINT);
+  SetResultErrorField("position", result, PG_DIAG_STATEMENT_POSITION);
   SetResultErrorField("internalPosition", result, PG_DIAG_INTERNAL_POSITION);
   SetResultErrorField("internalQuery", result, PG_DIAG_INTERNAL_QUERY);
   SetResultErrorField("context", result, PG_DIAG_CONTEXT);
-  SetResultErrorField("schemaName", result, PG_DIAG_SCHEMA_NAME);
-  SetResultErrorField("tableName", result, PG_DIAG_TABLE_NAME);
-  SetResultErrorField("columnName", result, PG_DIAG_COLUMN_NAME);
-  SetResultErrorField("dataTypeName", result, PG_DIAG_DATATYPE_NAME);
-  SetResultErrorField("constraintName", result, PG_DIAG_CONSTRAINT_NAME);
-  SetResultErrorField("sourceFile", result, PG_DIAG_SOURCE_FILE);
-  SetResultErrorField("sourceLine", result, PG_DIAG_SOURCE_LINE);
-  SetResultErrorField("sourceFunction", result, PG_DIAG_SOURCE_FUNCTION);
+  SetResultErrorField("schema", result, PG_DIAG_SCHEMA_NAME);
+  SetResultErrorField("table", result, PG_DIAG_TABLE_NAME);
+  SetResultErrorField("column", result, PG_DIAG_COLUMN_NAME);
+  SetResultErrorField("dataType", result, PG_DIAG_DATATYPE_NAME);
+  SetResultErrorField("constraint", result, PG_DIAG_CONSTRAINT_NAME);
+  SetResultErrorField("file", result, PG_DIAG_SOURCE_FILE);
+  SetResultErrorField("line", result, PG_DIAG_SOURCE_LINE);
+  SetResultErrorField("func", result, PG_DIAG_SOURCE_FUNCTION);
 }
 
 v8::Local<v8::Object> Client::CreateResult(PGresult *result, bool includeValues, bool includeMetadata) {
