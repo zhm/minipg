@@ -78,6 +78,10 @@ Client.prototype.close = function () {
   return this.nativeClient.close();
 };
 
+Client.prototype.setNoticeProcessor = function (processor) {
+  this.nativeClient.setNoticeProcessor(processor);
+};
+
 function createPool(options) {
   return genericPool.Pool({
     name: options.name || 'minipg',
@@ -89,6 +93,7 @@ function createPool(options) {
     },
     max: options.max || 10,
     idleTimeoutMillis: options.idleTimeoutMillis || 30000,
+    reapIntervalMillis: options.reapIntervalMillis || 1000,
     log: options.log
   });
 }

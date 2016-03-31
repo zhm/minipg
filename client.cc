@@ -2,10 +2,29 @@
 
 Nan::Persistent<v8::Function> Client::constructor;
 
-Client::Client() : connection_(nullptr) {
+void Client::NoticeProcessor(void *arg, const char *message) {
+  Client *client = static_cast<Client *>(arg);
+
+  if (client->noticeProcessor_) {
+    v8::Local<v8::Value> argv[] = {
+      Nan::New(message).ToLocalChecked()
+    };
+
+    client->noticeProcessor_->Call(1, argv);
+  } else {
+    fprintf(stderr, "%s", message);
+  }
+}
+
+Client::Client() : connection_(nullptr), noticeProcessor_(nullptr) {
 }
 
 Client::~Client() {
+  if (noticeProcessor_) {
+    delete noticeProcessor_;
+    noticeProcessor_ = nullptr;
+  }
+
   Close();
 }
 
@@ -22,6 +41,7 @@ void Client::Init(v8::Local<v8::Object> exports) {
   Nan::SetPrototypeMethod(tpl, "getResult", GetResult);
   Nan::SetPrototypeMethod(tpl, "lastError", LastError);
   Nan::SetPrototypeMethod(tpl, "finished", IsFinished);
+  Nan::SetPrototypeMethod(tpl, "setNoticeProcessor", SetNoticeProcessor);
 
   constructor.Reset(tpl->GetFunction());
 
@@ -55,6 +75,10 @@ NAN_METHOD(Client::Connect) {
     Nan::ThrowError(client->lastErrorMessage_.c_str());
     return;
   }
+
+  PQsetNoticeProcessor(client->connection_,
+                       Client::NoticeProcessor,
+                       client);
 
   info.GetReturnValue().Set(info.This());
 }
@@ -121,6 +145,23 @@ NAN_METHOD(Client::Query) {
   if (result != 1) {
     Nan::ThrowError(client->lastErrorMessage_.c_str());
     return;
+  }
+
+  info.GetReturnValue().Set(info.This());
+}
+
+NAN_METHOD(Client::SetNoticeProcessor) {
+  Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
+
+  if (client->noticeProcessor_) {
+    delete client->noticeProcessor_;
+    client->noticeProcessor_ = nullptr;
+  }
+
+  client->noticeProcessor_ = nullptr;
+
+  if (!info[0]->IsNull() && !info[0]->IsUndefined()) {
+    client->noticeProcessor_ = new Nan::Callback(info[0].As<v8::Function>());
   }
 
   info.GetReturnValue().Set(info.This());

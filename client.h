@@ -29,6 +29,8 @@ private:
 
   static NAN_METHOD(LastError);
 
+  static NAN_METHOD(SetNoticeProcessor);
+
   static Nan::Persistent<v8::Function> constructor;
 
   void Close();
@@ -39,7 +41,11 @@ private:
 
   static v8::Local<v8::Object> CreateResult(PGresult *result, bool includeValues, bool includeMetadata);
 
+  static void NoticeProcessor(void *arg, const char *message);
+
   PGconn *connection_;
+
+  Nan::Callback *noticeProcessor_;
 
   std::string lastErrorMessage_;
 

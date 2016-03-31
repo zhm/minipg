@@ -63,4 +63,21 @@ describe('minipg', function () {
       }
     });
   });
+
+  it('should be able to process notices', function (done) {
+    pool.acquire(function (err, client) {
+      var warning = null;
+      client.setNoticeProcessor(function (message) {
+        warning = message;
+      });
+
+      client.query('COMMIT').each(function(err, finished, columns, values, index) {
+        if (finished) {
+          assert.equal(warning, 'WARNING:  there is no transaction in progress\n');
+          pool.release(client);
+          done();
+        }
+      });
+    });
+  });
 });
