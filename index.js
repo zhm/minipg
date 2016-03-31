@@ -1,12 +1,19 @@
 var NativeClient = require('bindings')('addon').Client;
 var genericPool = require('generic-pool');
 
+function defaultNoticeProcessor(message) {
+  console.warn(message);
+}
+
 function Client() {
   this.nativeClient = new NativeClient();
 }
 
+Client.defaultNoticeProcessor = defaultNoticeProcessor;
+
 Client.prototype.connect = function (string) {
   this.nativeClient.connect(string);
+  this.nativeClient.setNoticeProcessor(Client.defaultNoticeProcessor || defaultNoticeProcessor);
   return this;
 };
 
