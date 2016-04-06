@@ -68,13 +68,19 @@ describe('minipg', function () {
     pool.acquire(function (err, client) {
       var warning = null;
       client.setNoticeProcessor(function (message) {
-        console.log('warn', message);
         warning = message;
       });
 
-      client.query('COMMIT;').each(function(err, finished, columns, values, index) {
+      const noticeSQL = `
+DO language plpgsql $$
+BEGIN
+  RAISE NOTICE 'test notice';
+END
+$$;`;
+
+      client.query(noticeSQL).each(function(err, finished, columns, values, index) {
         if (finished) {
-          assert.equal(warning, 'WARNING:  there is no transaction in progress\n');
+          assert.equal(warning, 'NOTICE:  test notice\n');
           pool.release(client);
           done();
         }
