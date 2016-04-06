@@ -68,10 +68,11 @@ describe('minipg', function () {
     pool.acquire(function (err, client) {
       var warning = null;
       client.setNoticeProcessor(function (message) {
+        console.log('warn', message);
         warning = message;
       });
 
-      client.query('COMMIT').each(function(err, finished, columns, values, index) {
+      client.query('COMMIT;').each(function(err, finished, columns, values, index) {
         if (finished) {
           assert.equal(warning, 'WARNING:  there is no transaction in progress\n');
           pool.release(client);
