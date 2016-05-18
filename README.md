@@ -13,21 +13,22 @@ npm install minipg
 ## Example
 
 ```js
-var Client = require('minipg').Client;
+import { Client } from 'minipg';
 
-var client = new Client().connect('dbname = postgres');
+const client = new Client().connect('dbname = postgres');
 
-var sql = 'SELECT generate_series(1, 4000000000)';
+const sql = 'SELECT generate_series(1, 4000000000)';
 
 // query an essentially infinite series of results
-client.query(sql).each(function(err, finished, row, index) {
+client.query(sql).each(function(err, finished, columns, row, index) {
   // `err` is a possible error message
   // `finished` indicates that the iteration is complete
+  // `columns` an object containing the column definitions
   // `row` is the row object with the row data in it
   // `index` is the index of this row in the result set
   console.log(index);
 
-  if (row == null) {
+  if (finished) {
     // the end was reached
     client.close();
   }
