@@ -23,6 +23,8 @@ private:
 
   static NAN_METHOD(GetResult);
 
+  static NAN_METHOD(GetResults);
+
   static NAN_METHOD(Close);
 
   static NAN_METHOD(IsFinished);
@@ -38,6 +40,8 @@ private:
   void SetLastError(PGresult *result);
 
   void SetResultErrorField(const char *key, const PGresult *result, int fieldCode);
+
+  v8::Local<v8::Value> ProcessSingleResult(bool returnMetadata);
 
   static v8::Local<v8::Object> CreateResult(PGresult *result, bool includeValues, bool includeMetadata);
 

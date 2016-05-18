@@ -1,17 +1,24 @@
-var createPool = require('../').createPool;
-var assert = require('assert');
-var fs = require('fs');
-var path = require('path');
+import { createPool } from '../src';
 
-var db = 'dbname = postgres';
-var sql = fs.readFileSync(path.join(__dirname, 'test.sql'));
+import assert from 'assert';
+import fs from 'fs';
+import path from 'path';
 
-var pool = createPool({db: db});
+const db = 'dbname = postgres';
+const sql = fs.readFileSync(path.join(__dirname, 'test.sql'));
 
-var execSQL = function (db, command, callback) {
-  pool.acquire(function (err, client) {
-    client.query(command).each(function(err, finished, columns, values, index) {
+const pool = createPool({db: db});
+
+const execSQL = (database, command, callback) => {
+  pool.acquire((err, client) => {
+    if (err) {
+      throw err;
+    }
+
+    client.query(command).each((err, finished, columns, values, index) => {
+      /* eslint-disable callback-return */
       callback(err, finished, columns, values, index);
+      /* eslint-enable callback-return */
 
       if (finished) {
         pool.release(client);
@@ -20,11 +27,13 @@ var execSQL = function (db, command, callback) {
   });
 };
 
-describe('minipg', function () {
-  it('should query the database', function (done) {
-    var db = 'dbname = postgres';
+describe('minipg', () => {
+  it('should query the database', (done) => {
+    execSQL(db, sql, (err, finished, columns, values, index) => {
+      if (err) {
+        throw err;
+      }
 
-    execSQL(db, sql, function (err, finished, columns, values, index) {
       if (finished) {
         assert.equal(columns.length, 1);
         assert.equal(values, null);
@@ -34,10 +43,8 @@ describe('minipg', function () {
     });
   });
 
-  it('should return errors', function (done) {
-    var db = 'dbname = postgres';
-
-    execSQL(db, 'sele', function (err, finished, columns, values, index) {
+  it('should return errors', (done) => {
+    execSQL(db, 'sele', (err, finished, columns, values, index) => {
       if (finished) {
         assert.equal(columns, null);
         assert.equal(values, null);
@@ -51,10 +58,12 @@ describe('minipg', function () {
     });
   });
 
-  it('should work properly for empty result sets', function (done) {
-    var db = 'dbname = postgres';
+  it('should work properly for empty result sets', (done) => {
+    execSQL(db, 'SELECT 1::int AS count WHERE 1 = 0', (err, finished, columns, values, index) => {
+      if (err) {
+        throw err;
+      }
 
-    execSQL(db, 'SELECT 1::int AS count WHERE 1 = 0', function (err, finished, columns, values, index) {
       if (finished) {
         assert.equal(columns.length, 1);
         assert.equal(values, null);
@@ -64,10 +73,15 @@ describe('minipg', function () {
     });
   });
 
-  it('should be able to process notices', function (done) {
-    pool.acquire(function (err, client) {
-      var warning = null;
-      client.setNoticeProcessor(function (message) {
+  it('should be able to process notices', (done) => {
+    pool.acquire((err, client) => {
+      if (err) {
+        throw err;
+      }
+
+      let warning = null;
+
+      client.setNoticeProcessor((message) => {
         warning = message;
       });
 
@@ -78,7 +92,11 @@ BEGIN
 END
 $$;`;
 
-      client.query(noticeSQL).each(function(err, finished, columns, values, index) {
+      client.query(noticeSQL).each((err, finished, columns, values, index) => {
+        if (err) {
+          throw err;
+        }
+
         if (finished) {
           assert.equal(warning, 'NOTICE:  test notice\n');
           pool.release(client);

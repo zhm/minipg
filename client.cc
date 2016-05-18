@@ -1,5 +1,7 @@
 #include "client.h"
 
+static const int RESULT_BATCH_SIZE = 100;
+
 Nan::Persistent<v8::Function> Client::constructor;
 
 void Client::NoticeProcessor(void *arg, const char *message) {
@@ -39,6 +41,7 @@ void Client::Init(v8::Local<v8::Object> exports) {
   Nan::SetPrototypeMethod(tpl, "query", Query);
   Nan::SetPrototypeMethod(tpl, "close", Close);
   Nan::SetPrototypeMethod(tpl, "getResult", GetResult);
+  Nan::SetPrototypeMethod(tpl, "getResults", GetResults);
   Nan::SetPrototypeMethod(tpl, "lastError", LastError);
   Nan::SetPrototypeMethod(tpl, "finished", IsFinished);
   Nan::SetPrototypeMethod(tpl, "setNoticeProcessor", SetNoticeProcessor);
@@ -168,15 +171,21 @@ NAN_METHOD(Client::SetNoticeProcessor) {
 }
 
 NAN_METHOD(Client::GetResult) {
+  bool returnMetadata = false;
+
+  if (!info[0]->IsUndefined()) {
+    returnMetadata = Nan::To<bool>(info[0]).FromMaybe(false);
+  }
+
   Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
 
-  PGresult *result = PQgetResult(client->connection_);
+  auto result = client->ProcessSingleResult(returnMetadata);
 
-  if (result == nullptr) {
-    client->finished_ = true;
-    info.GetReturnValue().SetNull();
-    return;
-  }
+  info.GetReturnValue().Set(result);
+}
+
+NAN_METHOD(Client::GetResults) {
+  Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
 
   bool returnMetadata = false;
 
@@ -184,7 +193,38 @@ NAN_METHOD(Client::GetResult) {
     returnMetadata = Nan::To<bool>(info[0]).FromMaybe(false);
   }
 
-  client->SetLastError(result);
+  auto results = Nan::New<v8::Array>();
+
+  int index = 0;
+
+  while (true) {
+    auto result = client->ProcessSingleResult(returnMetadata && index == 0);
+
+    if (client->finished_) {
+      break;
+    }
+
+    Nan::Set(results, index, result);
+
+    ++index;
+
+    if (index >= RESULT_BATCH_SIZE) {
+      break;
+    }
+  }
+
+  info.GetReturnValue().Set(results);
+}
+
+v8::Local<v8::Value> Client::ProcessSingleResult(bool returnMetadata) {
+  PGresult *result = PQgetResult(connection_);
+
+  if (result == nullptr) {
+    finished_ = true;
+    return Nan::Null();
+  }
+
+  SetLastError(result);
 
   ExecStatusType status = PQresultStatus(result);
 
@@ -192,14 +232,14 @@ NAN_METHOD(Client::GetResult) {
     case PGRES_EMPTY_QUERY:
     case PGRES_COMMAND_OK:
       PQclear(result);
-      info.GetReturnValue().SetNull();
+      return Nan::Null();
       break;
 
     case PGRES_BAD_RESPONSE:
     case PGRES_NONFATAL_ERROR:
     case PGRES_FATAL_ERROR:
       PQclear(result);
-      info.GetReturnValue().SetNull();
+      return Nan::Null();
       break;
 
     case PGRES_TUPLES_OK: {
@@ -219,7 +259,7 @@ NAN_METHOD(Client::GetResult) {
 
       PQclear(result);
 
-      info.GetReturnValue().Set(resultObject);
+      return resultObject;
       break;
     }
 
@@ -228,7 +268,7 @@ NAN_METHOD(Client::GetResult) {
 
       PQclear(result);
 
-      info.GetReturnValue().Set(resultObject);
+      return resultObject;
       break;
     }
 
@@ -236,7 +276,7 @@ NAN_METHOD(Client::GetResult) {
     case PGRES_COPY_IN:
     case PGRES_COPY_BOTH:
       PQclear(result);
-      info.GetReturnValue().SetNull();
+      return Nan::Null();
       break;
   }
 }
@@ -255,6 +295,8 @@ inline void Client::SetResultErrorField(const char *key, const PGresult *result,
 }
 
 void Client::SetLastError(PGresult *result) {
+  lastError_.clear();
+
   if (result) {
     lastErrorMessage_ = PQresultErrorMessage(result);
   }
@@ -263,6 +305,10 @@ void Client::SetLastError(PGresult *result) {
   }
 
   lastError_["message"] = lastErrorMessage_;
+
+  if (lastErrorMessage_.empty()) {
+    return;
+  }
 
   SetResultErrorField("severity", result, PG_DIAG_SEVERITY);
   SetResultErrorField("state", result, PG_DIAG_SQLSTATE);
@@ -317,7 +363,7 @@ v8::Local<v8::Object> Client::CreateResult(PGresult *result, bool includeValues,
 
     if (includeValues) {
       int isNull = PQgetisnull(result, 0, i);
-      const char *value = PQgetvalue(result, 0, i);
+      const char *value = isNull ? nullptr : PQgetvalue(result, 0, i);
 
       if (isNull) {
         Nan::Set(values, i, Nan::Null());
