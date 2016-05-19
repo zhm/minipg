@@ -295,8 +295,6 @@ inline void Client::SetResultErrorField(const char *key, const PGresult *result,
 }
 
 void Client::SetLastError(PGresult *result) {
-  lastError_.clear();
-
   if (result) {
     lastErrorMessage_ = PQresultErrorMessage(result);
   }
@@ -304,12 +302,11 @@ void Client::SetLastError(PGresult *result) {
     lastErrorMessage_ = PQerrorMessage(connection_);
   }
 
-  lastError_["message"] = lastErrorMessage_;
-
   if (lastErrorMessage_.empty()) {
     return;
   }
 
+  lastError_["message"] = lastErrorMessage_;
   SetResultErrorField("severity", result, PG_DIAG_SEVERITY);
   SetResultErrorField("state", result, PG_DIAG_SQLSTATE);
   SetResultErrorField("primary", result, PG_DIAG_MESSAGE_PRIMARY);
