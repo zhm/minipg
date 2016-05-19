@@ -4,7 +4,11 @@
 #include <map>
 
 #include <libpq-fe.h>
+#include <internal/pqexpbuffer.h>
 #include <nan.h>
+#include <sstream>
+
+using namespace std;
 
 class Client : public Nan::ObjectWrap {
 public:
@@ -25,6 +29,8 @@ private:
 
   static NAN_METHOD(GetResults);
 
+  static NAN_METHOD(GetResultsFast);
+
   static NAN_METHOD(Close);
 
   static NAN_METHOD(IsFinished);
@@ -43,7 +49,11 @@ private:
 
   v8::Local<v8::Value> ProcessSingleResult(bool returnMetadata);
 
+  void ProcessSingleResultFast(bool returnMetadata, stringstream& results);
+
   static v8::Local<v8::Object> CreateResult(PGresult *result, bool includeValues, bool includeMetadata);
+
+  static void CreateResultFast(PGresult *result, bool includeValues, bool includeMetadata, stringstream& results);
 
   static void NoticeProcessor(void *arg, const char *message);
 

@@ -1,8 +1,58 @@
 #include "client.h"
 
-static const int RESULT_BATCH_SIZE = 100;
+static const int RESULT_BATCH_SIZE = 1000;
 
 Nan::Persistent<v8::Function> Client::constructor;
+
+static inline void RemoveTrailingComma(stringstream &results) {
+  results.seekp(-1, results.cur);
+}
+
+static inline void OutputEscapedJSON(stringstream& results, const char *value) {
+  const char *p;
+
+  static char escaped[10] = {0};
+
+  results << '"';
+
+  for (p = value; *p; p++) {
+    switch (*p) {
+      case '\b':
+        results << "\\b";
+        break;
+      case '\f':
+        results << "\\f";
+        break;
+      case '\n':
+        results << "\\n";
+        break;
+      case '\r':
+        results << "\\r";
+        break;
+      case '\t':
+        results << "\\t";
+        break;
+      case '"':
+        results << "\\\"";
+        break;
+      case '\\':
+        results << "\\\\";
+        break;
+      default: {
+        if ((unsigned char) *p < ' ') {
+          snprintf(escaped, sizeof(escaped), "\\u%04x", (int)*p);
+
+          results << escaped;
+        } else {
+          results << *p;
+        }
+        break;
+      }
+    }
+  }
+
+  results << '"';
+}
 
 void Client::NoticeProcessor(void *arg, const char *message) {
   Client *client = static_cast<Client *>(arg);
@@ -42,6 +92,7 @@ void Client::Init(v8::Local<v8::Object> exports) {
   Nan::SetPrototypeMethod(tpl, "close", Close);
   Nan::SetPrototypeMethod(tpl, "getResult", GetResult);
   Nan::SetPrototypeMethod(tpl, "getResults", GetResults);
+  Nan::SetPrototypeMethod(tpl, "getResultsFast", GetResultsFast);
   Nan::SetPrototypeMethod(tpl, "lastError", LastError);
   Nan::SetPrototypeMethod(tpl, "finished", IsFinished);
   Nan::SetPrototypeMethod(tpl, "setNoticeProcessor", SetNoticeProcessor);
@@ -216,6 +267,43 @@ NAN_METHOD(Client::GetResults) {
   info.GetReturnValue().Set(results);
 }
 
+NAN_METHOD(Client::GetResultsFast) {
+  Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
+
+  bool returnMetadata = false;
+
+  if (!info[0]->IsUndefined()) {
+    returnMetadata = Nan::To<bool>(info[0]).FromMaybe(false);
+  }
+
+  std::stringstream results;
+  /* auto results = Nan::New<v8::Array>(); */
+
+  int index = 0;
+
+  results << "[";
+
+  while (true) {
+    client->ProcessSingleResultFast(returnMetadata && index == 0, results);
+
+    if (client->finished_) {
+      break;
+    }
+
+    ++index;
+
+    if (index >= RESULT_BATCH_SIZE) {
+      break;
+    }
+  }
+
+  RemoveTrailingComma(results);
+
+  results << "]";
+
+  info.GetReturnValue().Set(Nan::New(results.str().c_str()).ToLocalChecked());
+}
+
 v8::Local<v8::Value> Client::ProcessSingleResult(bool returnMetadata) {
   PGresult *result = PQgetResult(connection_);
 
@@ -277,6 +365,72 @@ v8::Local<v8::Value> Client::ProcessSingleResult(bool returnMetadata) {
     case PGRES_COPY_BOTH:
       PQclear(result);
       return Nan::Null();
+      break;
+  }
+}
+
+void Client::ProcessSingleResultFast(bool returnMetadata, stringstream& results) {
+  PGresult *result = PQgetResult(connection_);
+
+  if (result == nullptr) {
+    finished_ = true;
+    results << "null,";
+    return;
+  }
+
+  /* SetLastError(result); */
+
+  ExecStatusType status = PQresultStatus(result);
+
+  switch (status) {
+    case PGRES_EMPTY_QUERY:
+    case PGRES_COMMAND_OK:
+      PQclear(result);
+      results << "null,";
+      break;
+
+    case PGRES_BAD_RESPONSE:
+    case PGRES_NONFATAL_ERROR:
+    case PGRES_FATAL_ERROR:
+      PQclear(result);
+      results << "null,";
+      break;
+
+    case PGRES_TUPLES_OK: {
+      // If the query returns any rows, they are returned as individual PGresult objects, which look
+      // like normal query results except for having status code PGRES_SINGLE_TUPLE instead of
+      // PGRES_TUPLES_OK. After the last row, or immediately if the query returns zero rows, a
+      // zero-row object with status PGRES_TUPLES_OK is returned; this is the signal that no more
+      // rows will arrive. (But note that it is still necessary to continue calling PQgetResult
+      // until it returns null.)
+      //
+      // ref: http://www.postgresql.org/docs/9.4/static/libpq-single-row-mode.html
+      //
+      // we still want to create a result object so that we can capture the column structure for queries
+      // that return 0 rows. If we just hand "null" back to the caller they can't build a correct empty
+      // result set.
+      CreateResultFast(result, false, returnMetadata, results);
+
+      PQclear(result);
+
+      return;
+      break;
+    }
+
+    case PGRES_SINGLE_TUPLE: {
+      CreateResultFast(result, true, returnMetadata, results);
+
+      PQclear(result);
+
+      return;
+      break;
+    }
+
+    case PGRES_COPY_OUT:
+    case PGRES_COPY_IN:
+    case PGRES_COPY_BOTH:
+      PQclear(result);
+      results << "null,";
       break;
   }
 }
@@ -383,4 +537,75 @@ v8::Local<v8::Object> Client::CreateResult(PGresult *result, bool includeValues,
   }
 
   return resultObject;
+}
+
+void Client::CreateResultFast(PGresult *result, bool includeValues, bool includeMetadata, stringstream& results) {
+  int fieldCount = PQnfields(result);
+
+  /* auto resultObject = Nan::New<v8::Object>(); */
+  /* auto columns = Nan::New<v8::Array>(); */
+  /* auto values = Nan::New<v8::Array>(); */
+
+  results << "\n{";
+
+  if (includeMetadata) {
+    for (int i = 0; i < fieldCount; ++i) {
+      if (i == 0) {
+        results << "\"columns\":[";
+      }
+
+      const char *columnName = PQfname(result, i);
+      Oid columnType = PQftype(result, i);
+      int columnMod = PQfmod(result, i);
+      int columnSize = PQfsize(result, i);
+      /* int length = PQgetlength(result, 0, i); */
+
+      results << "{\"name\": ";
+
+      OutputEscapedJSON(results, columnName);
+
+      results << ",";
+
+      results << "\"type\": " << (int)columnType << ",";
+      results << "\"mod\": " << columnMod << ",";
+      results << "\"size\": " << columnSize << "},";
+
+      if (i == fieldCount - 1) {
+        RemoveTrailingComma(results);
+
+        results << "],";
+      }
+    }
+  }
+
+  if (includeValues) {
+    for (int i = 0; i < fieldCount; ++i) {
+      if (i == 0) {
+        results << "\"values\":[";
+      }
+
+      int isNull = PQgetisnull(result, 0, i);
+      const char *value = isNull ? nullptr : PQgetvalue(result, 0, i);
+
+      if (isNull) {
+        results << "null,";
+      }
+      else {
+        OutputEscapedJSON(results, value);
+
+        results << ",";
+      }
+
+      if (i == fieldCount - 1) {
+        RemoveTrailingComma(results);
+        results << "],";
+      }
+    }
+
+    if (fieldCount > 0) {
+      RemoveTrailingComma(results);
+    }
+  }
+
+  results << "},";
 }
