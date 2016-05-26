@@ -40,15 +40,19 @@ export default class Cursor {
 
   next(callback) {
     const processResult = () => {
-      const row = this.batch[this.batchOffset];
+      let values = null;
 
-      this.batchOffset += 1;
+      if (this.batch.length) {
+        const row = this.batch[this.batchOffset];
 
-      if (row && row.values) {
-        this.index += 1;
+        this.batchOffset += 1;
+
+        if (row && row.values) {
+          this.index += 1;
+        }
+
+        values = row ? row.values : null;
       }
-
-      const values = row ? row.values : null;
 
       callback(this.error,
                this.finished && this.batchOffset === this.batch.length,
