@@ -66,7 +66,11 @@ function createPool(options) {
   return genericPool.Pool({
     name: options.name || 'minipg',
     create: callback => {
-      callback(null, new Client().connect(options.db));
+      try {
+        return callback(null, new Client().connect(options.db));
+      } catch (err) {
+        return callback(err);
+      }
     },
     destroy: client => {
       client.close();
