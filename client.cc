@@ -18,7 +18,7 @@ void Client::NoticeProcessor(void *arg, const char *message) {
   }
 }
 
-Client::Client() : connection_(nullptr), noticeProcessor_(nullptr) {
+Client::Client() : connection_(nullptr), noticeProcessor_(nullptr), finished_(true) {
 }
 
 Client::~Client() {

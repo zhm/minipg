@@ -19,9 +19,12 @@ function defaultNoticeProcessor(message) {
   console.warn(message);
 }
 
+let nextClientID = 0;
+
 class Client {
   constructor() {
     this.nativeClient = new NativeClient();
+    this.id = ++nextClientID;
   }
 
   connect(string) {
@@ -31,6 +34,10 @@ class Client {
   }
 
   query(sql) {
+    if (!this.nativeClient.finished()) {
+      throw new Error('client in use', this.id);
+    }
+
     this.nativeClient.query(sql);
 
     return new _cursor2.default(this);
