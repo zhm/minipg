@@ -60,6 +60,8 @@ private:
   std::map<std::string, std::string> lastError_;
 
   bool finished_;
+
+  bool busy_;
 };
 
 #endif

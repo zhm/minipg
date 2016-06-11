@@ -19,8 +19,12 @@ void Client::NoticeProcessor(void *arg, const char *message) {
   }
 }
 
-Client::Client() : connection_(nullptr), noticeProcessor_(nullptr), finished_(true) {
-}
+Client::Client()
+: connection_(nullptr),
+  noticeProcessor_(nullptr),
+  finished_(true),
+  busy_(false)
+{}
 
 Client::~Client() {
   if (noticeProcessor_) {
@@ -191,7 +195,7 @@ NAN_METHOD(Client::GetResults) {
   while (true) {
     auto result = client->ProcessSingleResult(returnMetadata && index == 0);
 
-    if (client->finished_) {
+    if (client->finished_ || client->busy_) {
       break;
     }
 
@@ -208,6 +212,17 @@ NAN_METHOD(Client::GetResults) {
 }
 
 v8::Local<v8::Value> Client::ProcessSingleResult(bool returnMetadata) {
+  if (PQconsumeInput(connection_) == 0) {
+    SetLastError(nullptr);
+    return Nan::Null();
+  }
+
+  busy_ = PQisBusy(connection_);
+
+  if (busy_) {
+    return Nan::Null();
+  }
+
   PGresult *result = PQgetResult(connection_);
 
   if (result == nullptr) {
