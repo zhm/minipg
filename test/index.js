@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 
 const db = 'dbname = postgres';
-const sql = fs.readFileSync(path.join(__dirname, 'test.sql'));
+const sql = fs.readFileSync(path.join(__dirname, 'test.sql')).toString();
 
 const pool = createPool({db: db});
 

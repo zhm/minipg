@@ -65,11 +65,11 @@ NAN_METHOD(Client::New) {
 }
 
 NAN_METHOD(Client::Connect) {
-  std::string connectionString = *Nan::Utf8String(info[0]);
+  Nan::Utf8String connectionString(info[0]);
 
   Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
 
-  client->connection_ = PQconnectdb(connectionString.c_str());
+  client->connection_ = PQconnectdb(*connectionString);
 
   client->SetLastError(nullptr);
 
@@ -78,6 +78,8 @@ NAN_METHOD(Client::Connect) {
     Nan::ThrowError(client->lastErrorMessage_.c_str());
     return;
   }
+
+  PQsetClientEncoding(client->connection_, "utf-8");
 
   PQsetNoticeProcessor(client->connection_,
                        Client::NoticeProcessor,
@@ -130,11 +132,11 @@ NAN_METHOD(Client::IsFinished) {
 NAN_METHOD(Client::Query) {
   Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
 
-  std::string command = *Nan::Utf8String(info[0]);
+  Nan::Utf8String commandText(info[0]);
 
   client->finished_ = false;
 
-  int result = PQsendQuery(client->connection_, command.c_str());
+  int result = PQsendQuery(client->connection_, *commandText);
 
   client->SetLastError(nullptr);
 
