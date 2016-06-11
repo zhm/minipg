@@ -105,4 +105,24 @@ $$;`;
       });
     });
   });
+
+  it('should error when attempting to connect to a bogus host', function test(done) {
+    this.timeout(5000);
+
+    const badPool = createPool({db: 'host = does_not_exist, connect_timeout=1'});
+
+    badPool.acquire((err, client) => {
+      assert.equal(err.message, 'timeout expired\n');
+      done();
+    });
+  });
+
+  it('should error when attempting to connect to a bogus database', (done) => {
+    const badPool = createPool({db: 'dbname = does_not_exist'});
+
+    badPool.acquire((err, client) => {
+      assert.equal(err.message, 'FATAL:  database "does_not_exist" does not exist\n');
+      done();
+    });
+  });
 });

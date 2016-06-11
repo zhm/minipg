@@ -85,18 +85,10 @@ export default class Cursor {
         this.columns = results && results.length && results[0] && results[0].columns ? results[0].columns : null;
       }
 
-      const error = this.client.nativeClient.lastError();
+      const error = this.client.lastError;
 
       if (error) {
-        const queryError = new Error();
-
-        for (const prop in error) {
-          if (error.hasOwnProperty(prop)) {
-            queryError[prop] = error[prop];
-          }
-        }
-
-        this.error = queryError;
+        this.error = error;
       }
 
       callback();

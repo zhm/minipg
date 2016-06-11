@@ -10,25 +10,23 @@ ConnectWorker::~ConnectWorker()
 {}
 
 void ConnectWorker::Execute() {
-  PGconn *connection = PQconnectdb(connectionString_.c_str());
+  client_->connection_ = PQconnectdb(connectionString_.c_str());
 
   client_->SetLastError(nullptr);
 
-  if (PQstatus(connection) != CONNECTION_OK) {
+  if (PQstatus(client_->connection_) != CONNECTION_OK) {
     client_->Close();
     SetErrorMessage(client_->lastErrorMessage_.c_str());
     return;
   }
 
-  if (PQsetClientEncoding(connection, "utf-8") == -1) {
+  if (PQsetClientEncoding(client_->connection_, "utf-8") == -1) {
     client_->Close();
     SetErrorMessage("unable to set the client encoding to utf-8");
     return;
   }
 
-  PQsetNoticeProcessor(connection,
+  PQsetNoticeProcessor(client_->connection_,
                        Client::NoticeProcessor,
                        client_);
-
-  client_->connection_ = connection;
 }

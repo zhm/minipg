@@ -18,7 +18,7 @@ export class Client {
   connect(string, callback) {
     this.nativeClient.connect(string, (err) => {
       if (err) {
-        return callback(err);
+        return callback(err, this);
       }
 
       this.nativeClient.setNoticeProcessor(Client.defaultNoticeProcessor || defaultNoticeProcessor);
@@ -57,6 +57,24 @@ export class Client {
   setNoticeProcessor(processor) {
     this.nativeClient.setNoticeProcessor(processor);
   }
+
+  get lastError() {
+    const error = this.nativeClient.lastError();
+
+    if (error == null) {
+      return null;
+    }
+
+    const queryError = new Error();
+
+    for (const prop in error) {
+      if (error.hasOwnProperty(prop)) {
+        queryError[prop] = error[prop];
+      }
+    }
+
+    return queryError;
+  }
 }
 
 Client.defaultNoticeProcessor = defaultNoticeProcessor;
@@ -66,7 +84,13 @@ export function createPool(options) {
   return genericPool.Pool({
     name: options.name || 'minipg',
     create: (callback) => {
-      new Client().connect(options.db, callback);
+      new Client().connect(options.db, (err, client) => {
+        if (err) {
+          return callback(client ? client.lastError : err);
+        }
+
+        return callback(null, client);
+      });
     },
     destroy: (client) => {
       client.close();
