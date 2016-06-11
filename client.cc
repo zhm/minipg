@@ -1,4 +1,5 @@
 #include "client.h"
+#include "connect-worker.h"
 
 static const int RESULT_BATCH_SIZE = 100;
 
@@ -65,25 +66,13 @@ NAN_METHOD(Client::New) {
 }
 
 NAN_METHOD(Client::Connect) {
-  Nan::Utf8String connectionString(info[0]);
+  std::string connectionString = *Nan::Utf8String(info[0]);
 
   Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
 
-  client->connection_ = PQconnectdb(*connectionString);
+  Nan::Callback *callback = new Nan::Callback(info[1].As<v8::Function>());
 
-  client->SetLastError(nullptr);
-
-  if (PQstatus(client->connection_) != CONNECTION_OK) {
-    client->Close();
-    Nan::ThrowError(client->lastErrorMessage_.c_str());
-    return;
-  }
-
-  PQsetClientEncoding(client->connection_, "utf-8");
-
-  PQsetNoticeProcessor(client->connection_,
-                       Client::NoticeProcessor,
-                       client);
+  Nan::AsyncQueueWorker(new ConnectWorker(callback, client, connectionString));
 
   info.GetReturnValue().Set(info.This());
 }

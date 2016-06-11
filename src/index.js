@@ -15,10 +15,16 @@ export class Client {
     this.id = ++nextClientID;
   }
 
-  connect(string) {
-    this.nativeClient.connect(string);
-    this.nativeClient.setNoticeProcessor(Client.defaultNoticeProcessor || defaultNoticeProcessor);
-    return this;
+  connect(string, callback) {
+    this.nativeClient.connect(string, (err) => {
+      if (err) {
+        return callback(err);
+      }
+
+      this.nativeClient.setNoticeProcessor(Client.defaultNoticeProcessor || defaultNoticeProcessor);
+
+      return callback(null, this);
+    });
   }
 
   query(sql) {
@@ -60,11 +66,7 @@ export function createPool(options) {
   return genericPool.Pool({
     name: options.name || 'minipg',
     create: (callback) => {
-      try {
-        return callback(null, new Client().connect(options.db));
-      } catch (err) {
-        return callback(err);
-      }
+      new Client().connect(options.db, callback);
     },
     destroy: (client) => {
       client.close();

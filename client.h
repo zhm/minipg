@@ -6,11 +6,15 @@
 #include <libpq-fe.h>
 #include <nan.h>
 
+class ConnectWorker;
+
 class Client : public Nan::ObjectWrap {
 public:
   static void Init(v8::Local<v8::Object> exports);
 
 private:
+  friend class ConnectWorker;
+
   explicit Client();
 
   ~Client();

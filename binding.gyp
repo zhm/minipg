@@ -2,7 +2,9 @@
   "targets": [
     {
       "target_name": "addon",
-      "sources": [ "addon.cc", "client.cc" ],
+      "sources": [ "addon.cc",
+                   "client.cc",
+                   "connect-worker.cc" ],
       "include_dirs" : [
         "<!(node -e \"require('nan')\")",
         "<!(pg_config --includedir)",
