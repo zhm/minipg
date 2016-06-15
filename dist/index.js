@@ -14,13 +14,25 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 const NativeClient = require('bindings')('addon').Client;
 const genericPool = require('generic-pool');
-const fastFuture = require('fast-future')();
 
 function defaultNoticeProcessor(message) {
   console.warn(message);
 }
 
 let nextClientID = 0;
+
+let fastNextCount = 0;
+const fastNextLimit = 10;
+
+const fastFuture = callback => {
+  if (fastNextCount >= fastNextLimit) {
+    setImmediate(callback);
+    fastNextCount = 0;
+  } else {
+    process.nextTick(callback);
+  }
+  fastNextCount++;
+};
 
 class Client {
   constructor() {
