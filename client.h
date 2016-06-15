@@ -33,6 +33,8 @@ private:
 
   static NAN_METHOD(IsFinished);
 
+  static NAN_METHOD(IsBusy);
+
   static NAN_METHOD(LastError);
 
   static NAN_METHOD(SetNoticeProcessor);
@@ -60,6 +62,8 @@ private:
   std::map<std::string, std::string> lastError_;
 
   bool finished_;
+
+  bool busy_;
 };
 
 #endif
