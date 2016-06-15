@@ -6,13 +6,12 @@
   "main": "dist/index.js",
   "scripts": {
     "configure": "./node_modules/node-gyp/bin/node-gyp.js configure",
-    "build": "./node_modules/node-gyp/bin/node-gyp.js configure build",
+    "build": "./node_modules/node-gyp/bin/node-gyp.js configure build && node_modules/.bin/babel src --out-dir dist --source-maps",
     "rebuild": "./node_modules/node-gyp/bin/node-gyp.js configure rebuild",
     "test": "mocha test/setup.js test/index.js",
     "clean": "rm -rf dist build",
     "prepublish": "npm run lint && npm run clean && npm run build",
     "lint": "node_modules/.bin/eslint src/*.js src/**/*.js",
-    "build": "./node_modules/node-gyp/bin/node-gyp.js configure build && node_modules/.bin/babel src --out-dir dist --source-maps",
     "watch": "node_modules/.bin/babel src --out-dir dist --source-maps --watch"
   },
   "author": "Zac McCormick <zac.mccormick@gmail.com> (http://github.com/zhm)",
@@ -40,6 +39,7 @@
   },
   "dependencies": {
     "bindings": "^1.2.1",
+    "fast-future": "^1.0.1",
     "generic-pool": "^2.4.2",
     "nan": "^2.3.3",
     "node-gyp": "^3.3.1"

@@ -14,6 +14,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 const NativeClient = require('bindings')('addon').Client;
 const genericPool = require('generic-pool');
+const fastFuture = require('fast-future')();
 
 function defaultNoticeProcessor(message) {
   console.warn(message);
@@ -51,13 +52,13 @@ class Client {
 
   // fetch a single result record
   getResult(returnMetadata, callback) {
-    setImmediate(() => {
+    fastFuture(() => {
       callback(this.nativeClient.getResult(returnMetadata));
     });
   }
 
   getResults(returnMetadata, callback) {
-    setImmediate(() => {
+    fastFuture(() => {
       callback(this.nativeClient.getResults(returnMetadata));
     });
   }
