@@ -29,12 +29,12 @@ const execSQL = (database, command, callback) => {
 
 describe('minipg', () => {
   it('should query the database row by row', function test(done) {
-    this.timeout(600000);
+    this.timeout(5000);
 
     const bigQuery = `
 SELECT
-  (SELECT max("generate_series") FROM generate_series(1, value * 1000)) AS maximum
-FROM generate_series(1, 1000) AS value;
+  (SELECT max("generate_series") FROM generate_series(1, value * 100)) AS maximum
+FROM generate_series(1, 100) AS value;
     `;
 
     execSQL(db, bigQuery, (err, finished, columns, values, index) => {
@@ -45,7 +45,7 @@ FROM generate_series(1, 1000) AS value;
       if (finished) {
         assert.equal(columns.length, 1);
         assert.equal(values, null);
-        assert.equal(index, 9);
+        assert.equal(index, 99);
         done();
       }
     });
@@ -132,7 +132,7 @@ $$;`;
   it('should error when attempting to connect to a bogus host', function test(done) {
     this.timeout(5000);
 
-    const badPool = createPool({db: 'host = does_not_exist, connect_timeout=1'});
+    const badPool = createPool({db: 'host = 1.1.1.1 connect_timeout=1'});
 
     badPool.acquire((err, client) => {
       assert.equal(err.message, 'timeout expired\n');

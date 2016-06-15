@@ -33,6 +33,8 @@ private:
 
   static NAN_METHOD(IsFinished);
 
+  static NAN_METHOD(IsBusy);
+
   static NAN_METHOD(LastError);
 
   static NAN_METHOD(SetNoticeProcessor);

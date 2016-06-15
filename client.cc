@@ -49,6 +49,7 @@ void Client::Init(v8::Local<v8::Object> exports) {
   Nan::SetPrototypeMethod(tpl, "getResults", GetResults);
   Nan::SetPrototypeMethod(tpl, "lastError", LastError);
   Nan::SetPrototypeMethod(tpl, "finished", IsFinished);
+  Nan::SetPrototypeMethod(tpl, "busy", IsBusy);
   Nan::SetPrototypeMethod(tpl, "setNoticeProcessor", SetNoticeProcessor);
 
   constructor.Reset(tpl->GetFunction());
@@ -120,6 +121,12 @@ NAN_METHOD(Client::IsFinished) {
   Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
 
   info.GetReturnValue().Set(Nan::New(client->finished_));
+}
+
+NAN_METHOD(Client::IsBusy) {
+  Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
+
+  info.GetReturnValue().Set(Nan::New(client->busy_));
 }
 
 NAN_METHOD(Client::Query) {
