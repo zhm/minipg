@@ -77,19 +77,6 @@ export default class Cursor {
     const returnMetadata = (this.index === -1);
 
     this.client.getResults(returnMetadata, (results) => {
-      // If we got 0 results and it's busy, we are now fully waiting on the database server
-      // for data. In this case, wait a very small amount of time and process it again. Keep
-      // doing this until we get out of this loop. Once we get at least one result it will
-      // fall out of this process. Waiting 1ms also keeps this from melting the CPU in this
-      // 'spinlock' waiting for data.
-      if (results.length === 0 && this.client.nativeClient.busy()) {
-        setTimeout(() => {
-          this.nextBatch(callback);
-        }, 1);
-
-        return;
-      }
-
       this.batch = results;
       this.batchOffset = 0;
       this.finished = this.client.nativeClient.finished();

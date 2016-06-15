@@ -19,12 +19,8 @@ void Client::NoticeProcessor(void *arg, const char *message) {
   }
 }
 
-Client::Client()
-: connection_(nullptr),
-  noticeProcessor_(nullptr),
-  finished_(true),
-  busy_(false)
-{}
+Client::Client() : connection_(nullptr), noticeProcessor_(nullptr), finished_(true) {
+}
 
 Client::~Client() {
   if (noticeProcessor_) {
@@ -49,7 +45,6 @@ void Client::Init(v8::Local<v8::Object> exports) {
   Nan::SetPrototypeMethod(tpl, "getResults", GetResults);
   Nan::SetPrototypeMethod(tpl, "lastError", LastError);
   Nan::SetPrototypeMethod(tpl, "finished", IsFinished);
-  Nan::SetPrototypeMethod(tpl, "busy", IsBusy);
   Nan::SetPrototypeMethod(tpl, "setNoticeProcessor", SetNoticeProcessor);
 
   constructor.Reset(tpl->GetFunction());
@@ -121,12 +116,6 @@ NAN_METHOD(Client::IsFinished) {
   Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
 
   info.GetReturnValue().Set(Nan::New(client->finished_));
-}
-
-NAN_METHOD(Client::IsBusy) {
-  Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
-
-  info.GetReturnValue().Set(Nan::New(client->busy_));
 }
 
 NAN_METHOD(Client::Query) {
@@ -202,7 +191,7 @@ NAN_METHOD(Client::GetResults) {
   while (true) {
     auto result = client->ProcessSingleResult(returnMetadata && index == 0);
 
-    if (client->finished_ || client->busy_) {
+    if (client->finished_) {
       break;
     }
 
@@ -219,17 +208,6 @@ NAN_METHOD(Client::GetResults) {
 }
 
 v8::Local<v8::Value> Client::ProcessSingleResult(bool returnMetadata) {
-  if (PQconsumeInput(connection_) == 0) {
-    SetLastError(nullptr);
-    return Nan::Null();
-  }
-
-  busy_ = PQisBusy(connection_);
-
-  if (busy_) {
-    return Nan::Null();
-  }
-
   PGresult *result = PQgetResult(connection_);
 
   if (result == nullptr) {
