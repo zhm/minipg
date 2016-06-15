@@ -9,19 +9,6 @@ function defaultNoticeProcessor(message) {
 
 let nextClientID = 0;
 
-let fastNextCount = 0;
-const fastNextLimit = 10;
-
-const fastFuture = (callback) => {
-  if (fastNextCount >= fastNextLimit) {
-    setImmediate(callback);
-    fastNextCount = 0;
-  } else {
-    process.nextTick(callback);
-  }
-  fastNextCount++;
-};
-
 export class Client {
   constructor() {
     this.nativeClient = new NativeClient();
@@ -52,13 +39,13 @@ export class Client {
 
   // fetch a single result record
   getResult(returnMetadata, callback) {
-    fastFuture(() => {
+    Client.setImmediate(() => {
       callback(this.nativeClient.getResult(returnMetadata));
     });
   }
 
   getResults(returnMetadata, callback) {
-    fastFuture(() => {
+    Client.setImmediate(() => {
       callback(this.nativeClient.getResults(returnMetadata));
     });
   }
@@ -90,6 +77,7 @@ export class Client {
   }
 }
 
+Client.setImmediate = setImmediate;
 Client.defaultNoticeProcessor = defaultNoticeProcessor;
 
 export function createPool(options) {

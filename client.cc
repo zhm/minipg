@@ -1,7 +1,7 @@
 #include "client.h"
 #include "connect-worker.h"
 
-static const int RESULT_BATCH_SIZE = 100;
+static const int RESULT_BATCH_SIZE = 5;
 
 Nan::Persistent<v8::Function> Client::constructor;
 
