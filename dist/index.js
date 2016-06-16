@@ -58,7 +58,9 @@ class Client {
 
   getResults(returnMetadata, callback) {
     Client.setImmediate(() => {
-      callback(this.nativeClient.getResults(returnMetadata));
+      this.nativeClient.getResultsAsync(returnMetadata, results => {
+        callback(results);
+      });
     });
   }
 

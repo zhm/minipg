@@ -5,6 +5,7 @@
 
 #include <libpq-fe.h>
 #include <nan.h>
+#include <uv.h>
 
 class ConnectWorker;
 
@@ -29,6 +30,8 @@ private:
 
   static NAN_METHOD(GetResults);
 
+  static NAN_METHOD(GetResultsAsync);
+
   static NAN_METHOD(Close);
 
   static NAN_METHOD(IsFinished);
@@ -47,9 +50,15 @@ private:
 
   v8::Local<v8::Value> ProcessSingleResult(bool returnMetadata);
 
+  v8::Local<v8::Value> ProcessSingleResultAsync(bool returnMetadata);
+
   static v8::Local<v8::Object> CreateResult(PGresult *result, bool includeValues, bool includeMetadata);
 
   static void NoticeProcessor(void *arg, const char *message);
+
+  static void SocketReadCallback(uv_poll_t *handle, int status, int events);
+
+  void ProcessAvailableResults();
 
   PGconn *connection_;
 
@@ -60,6 +69,27 @@ private:
   std::map<std::string, std::string> lastError_;
 
   bool finished_;
+
+  bool busy_;
+
+  uv_poll_t *resultsPollHandle_;
+
+  Nan::Persistent<v8::Array> results_;
+
+  Nan::Callback callback_;
+
+  bool returnMetadata_;
+
+  int resultCount_;
+
+  /* class ResultsContext { */
+  /* public: */
+  /*   Nan::Callback *callback; */
+  /*   Nan::Persistent<v8::Array> *results; */
+  /*   bool returnMetadata; */
+  /* }; */
+
+  /* ResultsContext resultsContext_; */
 };
 
 #endif

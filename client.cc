@@ -1,7 +1,13 @@
 #include "client.h"
 #include "connect-worker.h"
 
-static const int RESULT_BATCH_SIZE = 5;
+#include <iostream>
+
+static void Log(std::string message) {
+  std::cout << message << std::endl;
+}
+
+static const int RESULT_BATCH_SIZE = 25;
 
 Nan::Persistent<v8::Function> Client::constructor;
 
@@ -19,7 +25,16 @@ void Client::NoticeProcessor(void *arg, const char *message) {
   }
 }
 
-Client::Client() : connection_(nullptr), noticeProcessor_(nullptr), finished_(true) {
+Client::Client()
+  : connection_(nullptr),
+    noticeProcessor_(nullptr),
+    finished_(true),
+    busy_(false),
+    resultsPollHandle_(nullptr),
+    results_(),
+    callback_(),
+    returnMetadata_(true),
+    resultCount_(0) {
 }
 
 Client::~Client() {
@@ -43,6 +58,7 @@ void Client::Init(v8::Local<v8::Object> exports) {
   Nan::SetPrototypeMethod(tpl, "close", Close);
   Nan::SetPrototypeMethod(tpl, "getResult", GetResult);
   Nan::SetPrototypeMethod(tpl, "getResults", GetResults);
+  Nan::SetPrototypeMethod(tpl, "getResultsAsync", GetResultsAsync);
   Nan::SetPrototypeMethod(tpl, "lastError", LastError);
   Nan::SetPrototypeMethod(tpl, "finished", IsFinished);
   Nan::SetPrototypeMethod(tpl, "setNoticeProcessor", SetNoticeProcessor);
@@ -205,6 +221,107 @@ NAN_METHOD(Client::GetResults) {
   }
 
   info.GetReturnValue().Set(results);
+}
+
+NAN_METHOD(Client::GetResultsAsync) {
+  Client* client = ObjectWrap::Unwrap<Client>(info.Holder());
+
+  bool returnMetadata = false;
+
+  if (!info[0]->IsUndefined()) {
+    returnMetadata = Nan::To<bool>(info[0]).FromMaybe(false);
+  }
+
+  if (!client->resultsPollHandle_) {
+    client->resultsPollHandle_ = new uv_poll_t;
+    memset(client->resultsPollHandle_, 0, sizeof(uv_poll_t));
+    client->resultsPollHandle_->data = client;
+
+    int socket = PQsocket(client->connection_);
+
+    uv_poll_init_socket(uv_default_loop(), client->resultsPollHandle_, socket);
+
+    if (!uv_is_active((uv_handle_t *)client->resultsPollHandle_)) {
+      uv_poll_start(client->resultsPollHandle_, UV_READABLE, &Client::SocketReadCallback);
+    }
+  }
+
+  client->callback_.SetFunction(info[1].As<v8::Function>());
+  client->returnMetadata_ = returnMetadata;
+
+  if (!PQisBusy(client->connection_)) {
+    client->ProcessAvailableResults();
+  }
+
+  info.GetReturnValue().Set(Nan::Null());
+}
+
+void Client::SocketReadCallback(uv_poll_t *handle, int status, int events) {
+  Nan::HandleScope scope;
+
+  Client *client = (Client *)handle->data;
+
+  client->ProcessAvailableResults();
+}
+
+void Client::ProcessAvailableResults() {
+  if (results_.IsEmpty()) {
+    results_.Reset(Nan::New<v8::Array>());
+    resultCount_ = 0;
+  }
+
+  v8::Local<v8::Array> results = Nan::New(results_);
+
+  bool batchReady = false;
+
+  while (true) {
+    auto result = ProcessSingleResultAsync(returnMetadata_ && resultCount_ == 0);
+
+    if (finished_) {
+      batchReady = true;
+      break;
+    }
+
+    Nan::Set(results, resultCount_, result);
+
+    resultCount_++;
+
+    if (resultCount_ >= RESULT_BATCH_SIZE) {
+      batchReady = true;
+      break;
+    }
+  }
+
+  if (batchReady) {
+    if (finished_) {
+      uv_poll_stop(resultsPollHandle_);
+      delete resultsPollHandle_;
+      resultsPollHandle_ = nullptr;
+    }
+
+    v8::Local<v8::Value> argv[] = {
+      results
+    };
+
+    callback_.Call(1, argv);
+
+    results_.Reset();
+  }
+}
+
+v8::Local<v8::Value> Client::ProcessSingleResultAsync(bool returnMetadata) {
+  if (PQconsumeInput(connection_) == 0) {
+    SetLastError(nullptr);
+    return Nan::Null();
+  }
+
+  busy_ = PQisBusy(connection_);
+
+  if (busy_) {
+    return Nan::Null();
+  }
+
+  return ProcessSingleResult(returnMetadata);
 }
 
 v8::Local<v8::Value> Client::ProcessSingleResult(bool returnMetadata) {
