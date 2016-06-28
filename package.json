@@ -1,6 +1,6 @@
 {
   "name": "minipg",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "PostgreSQL bindings for Nodejs using row-by-row access",
   "homepage": "http://github.com/zhm/minipg",
   "main": "dist/index.js",

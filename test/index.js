@@ -37,7 +37,7 @@ describe('minipg', () => {
       if (finished) {
         assert.equal(columns.length, 1);
         assert.equal(values, null);
-        assert.equal(index, 3999);
+        assert.equal(index, 4000);
         done();
       }
     });
@@ -48,7 +48,7 @@ describe('minipg', () => {
       if (finished) {
         assert.equal(columns, null);
         assert.equal(values, null);
-        assert.equal(index, -1);
+        assert.equal(index, 0);
         assert.equal(err.message, 'ERROR:  syntax error at or near "sele"\nLINE 1: sele\n        ^\n');
         assert.equal(err.primary, 'syntax error at or near "sele"');
         assert.equal(err.severity, 'ERROR');
@@ -67,7 +67,7 @@ describe('minipg', () => {
       if (finished) {
         assert.equal(columns.length, 1);
         assert.equal(values, null);
-        assert.equal(index, -1);
+        assert.equal(index, 0);
         done();
       }
     });

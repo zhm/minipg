@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 
 Object.defineProperty(exports, "__esModule", {
   value: true
@@ -8,7 +8,7 @@ class Cursor {
     this.client = client;
     this.batchOffset = 0;
     this.batch = [];
-    this.index = -1;
+    this.index = 0;
     this.columns = null;
     this.finished = false;
   }
@@ -31,6 +31,7 @@ class Cursor {
       callback(this.error, this.finished, this.columns, this.batch, this.index);
       /* eslint-enable callback-return */
 
+      console.log('incr2');
       this.index += this.batch.length;
 
       if (!this.finished) {
@@ -55,7 +56,9 @@ class Cursor {
         values = row ? row.values : null;
       }
 
+      /* eslint-disable callback-return */
       callback(this.error, this.finished && this.batchOffset === this.batch.length, this.columns, values, this.index);
+      /* eslint-enable callback-return */
     };
 
     if (this.batchOffset < this.batch.length) {
@@ -71,7 +74,7 @@ class Cursor {
   }
 
   nextBatch(callback) {
-    const returnMetadata = this.index === -1;
+    const returnMetadata = this.index === 0;
 
     this.client.getResults(returnMetadata, results => {
       this.batch = results;
