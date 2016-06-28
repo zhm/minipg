@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 Object.defineProperty(exports, "__esModule", {
   value: true
@@ -31,7 +31,6 @@ class Cursor {
       callback(this.error, this.finished, this.columns, this.batch, this.index);
       /* eslint-enable callback-return */
 
-      console.log('incr2');
       this.index += this.batch.length;
 
       if (!this.finished) {

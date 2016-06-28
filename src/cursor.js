@@ -30,7 +30,6 @@ export default class Cursor {
                this.index);
       /* eslint-enable callback-return */
 
-      console.log('incr2');
       this.index += this.batch.length;
 
       if (!this.finished) {
