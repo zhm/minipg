@@ -29,15 +29,28 @@ const execSQL = (database, command, callback) => {
 
 describe('minipg', () => {
   it('should query the database', (done) => {
+    let lastIndex = 0;
+    let lastColumns = null;
+    let lastValues = null;
+
     execSQL(db, sql, (err, finished, columns, values, index) => {
       if (err) {
         throw err;
       }
 
+      if (columns) {
+        lastColumns = columns;
+      }
+
+      if (values) {
+        lastValues = values;
+        lastIndex = index;
+      }
+
       if (finished) {
-        assert.equal(columns.length, 1);
-        assert.equal(values, null);
-        assert.equal(index, 4000);
+        assert.equal(lastColumns.length, 3);
+        assert.equal(lastIndex, 20);
+        assert.deepEqual(lastValues, [ '21', '21', '21' ]);
         done();
       }
     });
@@ -48,7 +61,7 @@ describe('minipg', () => {
       if (finished) {
         assert.equal(columns, null);
         assert.equal(values, null);
-        assert.equal(index, 0);
+        assert.equal(index, 1);
         assert.equal(err.message, 'ERROR:  syntax error at or near "sele"\nLINE 1: sele\n        ^\n');
         assert.equal(err.primary, 'syntax error at or near "sele"');
         assert.equal(err.severity, 'ERROR');
@@ -59,13 +72,19 @@ describe('minipg', () => {
   });
 
   it('should work properly for empty result sets', (done) => {
+    let lastColumns = null;
+
     execSQL(db, 'SELECT 1::int AS count WHERE 1 = 0', (err, finished, columns, values, index) => {
       if (err) {
         throw err;
       }
 
+      if (columns) {
+        lastColumns = columns;
+      }
+
       if (finished) {
-        assert.equal(columns.length, 1);
+        assert.equal(lastColumns.length, 1);
         assert.equal(values, null);
         assert.equal(index, 0);
         done();

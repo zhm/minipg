@@ -19,7 +19,7 @@ void Client::NoticeProcessor(void *arg, const char *message) {
   }
 }
 
-Client::Client() : connection_(nullptr), noticeProcessor_(nullptr), finished_(true) {
+Client::Client() : connection_(nullptr), noticeProcessor_(nullptr), finished_(true), empty_(true) {
 }
 
 Client::~Client() {
@@ -124,6 +124,7 @@ NAN_METHOD(Client::Query) {
   Nan::Utf8String commandText(info[0]);
 
   client->finished_ = false;
+  client->empty_ = true;
 
   int result = PQsendQuery(client->connection_, *commandText);
 
@@ -199,7 +200,7 @@ NAN_METHOD(Client::GetResults) {
 
     ++index;
 
-    if (index >= RESULT_BATCH_SIZE) {
+    if (index >= RESULT_BATCH_SIZE || client->empty_) {
       break;
     }
   }
@@ -209,6 +210,15 @@ NAN_METHOD(Client::GetResults) {
 
 v8::Local<v8::Value> Client::ProcessSingleResult(bool returnMetadata) {
   PGresult *result = PQgetResult(connection_);
+
+  // The empty_ flag breaks up the processing across multiple different commands
+  // we handle the result processing in batches and efficiently (not always) return
+  // the column metadata. For example, the batch size is 5, but if 2 different select
+  // queries are executed, one with 2 rows and one with 6 rows, it will be 2 batches.
+  // But we need to return different column metadata, so we need to prematurely end the
+  // batch once we reach the end of a single result set. When we get PGRES_EMPTY_QUERY or
+  // PGRES_COMMAND_OK we know we've reached the end.
+  empty_ = true;
 
   if (result == nullptr) {
     finished_ = true;
@@ -222,6 +232,7 @@ v8::Local<v8::Value> Client::ProcessSingleResult(bool returnMetadata) {
   switch (status) {
     case PGRES_EMPTY_QUERY:
     case PGRES_COMMAND_OK:
+      empty_ = true;
       PQclear(result);
       return Nan::Null();
       break;
@@ -229,6 +240,7 @@ v8::Local<v8::Value> Client::ProcessSingleResult(bool returnMetadata) {
     case PGRES_BAD_RESPONSE:
     case PGRES_NONFATAL_ERROR:
     case PGRES_FATAL_ERROR:
+      empty_ = true;
       PQclear(result);
       return Nan::Null();
       break;
@@ -246,6 +258,8 @@ v8::Local<v8::Value> Client::ProcessSingleResult(bool returnMetadata) {
       // we still want to create a result object so that we can capture the column structure for queries
       // that return 0 rows. If we just hand "null" back to the caller they can't build a correct empty
       // result set.
+      empty_ = true;
+
       auto resultObject = CreateResult(result, false, returnMetadata);
 
       PQclear(result);
@@ -255,6 +269,8 @@ v8::Local<v8::Value> Client::ProcessSingleResult(bool returnMetadata) {
     }
 
     case PGRES_SINGLE_TUPLE: {
+      empty_ = false;
+
       auto resultObject = CreateResult(result, true, returnMetadata);
 
       PQclear(result);
@@ -330,12 +346,20 @@ v8::Local<v8::Object> Client::CreateResult(PGresult *result, bool includeValues,
 
       const char *columnName = PQfname(result, i);
       Oid columnType = PQftype(result, i);
+      Oid columnTable = PQftable(result, i);
+      int columnNumber = PQftablecol(result, i);
       int columnMod = PQfmod(result, i);
       int columnSize = PQfsize(result, i);
       /* int length = PQgetlength(result, 0, i); */
 
       Nan::Set(column, Nan::New("name").ToLocalChecked(),
                        Nan::New(columnName).ToLocalChecked());
+
+      Nan::Set(column, Nan::New("table").ToLocalChecked(),
+                       Nan::New(columnTable));
+
+      Nan::Set(column, Nan::New("column").ToLocalChecked(),
+                       Nan::New(columnNumber));
 
       Nan::Set(column, Nan::New("type").ToLocalChecked(),
                        Nan::New(columnType));
