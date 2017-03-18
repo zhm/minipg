@@ -15,9 +15,9 @@ const execSQL = (database, command, callback) => {
       throw err;
     }
 
-    client.query(command).each((err, finished, columns, values, index) => {
+    client.query(command).each((err, {finished, columns, values, index}) => {
       /* eslint-disable callback-return */
-      callback(err, finished, columns, values, index);
+      callback(err, {finished, columns, values, index});
       /* eslint-enable callback-return */
 
       if (finished) {
@@ -33,7 +33,7 @@ describe('minipg', () => {
     let lastColumns = null;
     let lastValues = null;
 
-    execSQL(db, sql, (err, finished, columns, values, index) => {
+    execSQL(db, sql, (err, {finished, columns, values, index}) => {
       if (err) {
         throw err;
       }
@@ -57,7 +57,7 @@ describe('minipg', () => {
   });
 
   it('should return errors', (done) => {
-    execSQL(db, 'sele', (err, finished, columns, values, index) => {
+    execSQL(db, 'sele', (err, {finished, columns, values, index}) => {
       if (finished) {
         assert.equal(columns, null);
         assert.equal(values, null);
@@ -74,7 +74,7 @@ describe('minipg', () => {
   it('should work properly for empty result sets', (done) => {
     let lastColumns = null;
 
-    execSQL(db, 'SELECT 1::int AS count WHERE 1 = 0', (err, finished, columns, values, index) => {
+    execSQL(db, 'SELECT 1::int AS count WHERE 1 = 0', (err, {finished, columns, values, index}) => {
       if (err) {
         throw err;
       }
@@ -111,7 +111,7 @@ BEGIN
 END
 $$;`;
 
-      client.query(noticeSQL).each((err, finished, columns, values, index) => {
+      client.query(noticeSQL).each((err, {finished, columns, values, index}) => {
         if (err) {
           throw err;
         }

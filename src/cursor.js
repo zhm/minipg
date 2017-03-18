@@ -11,9 +11,9 @@ export default class Cursor {
   }
 
   each(callback) {
-    this.next((err, finished, columns, row, index) => {
+    this.next((err, finished, columns, values, index) => {
       /* eslint-disable callback-return */
-      callback(err, finished, columns, row, index);
+      callback(err, {finished, columns, values, index, client: this.client});
       /* eslint-enable callback-return */
 
       if (!finished) {
@@ -32,7 +32,6 @@ export default class Cursor {
                this.index);
       /* eslint-enable callback-return */
 
-      // console.log('IDX', this.index, this.index + this.batch.length);
       this.index += this.batch.length;
 
       if (!this.finished) {
@@ -133,7 +132,6 @@ export default class Cursor {
       /* eslint-enable callback-return */
 
       if (results) {
-        // console.log('INCR', results.length, results);
         this.batchStart += results.length;
       }
 
