@@ -16,9 +16,15 @@ class Cursor {
   }
 
   each(callback) {
-    this.next((err, finished, columns, values, index) => {
+    this.next((err, _ref) => {
+      let finished = _ref.finished;
+      let columns = _ref.columns;
+      let values = _ref.values;
+      let index = _ref.index;
+      let client = _ref.client;
+
       /* eslint-disable callback-return */
-      callback(err, { finished: finished, columns: columns, values: values, index: index, client: this.client });
+      callback(err, { finished: finished, columns: columns, values: values, index: index, client: client });
       /* eslint-enable callback-return */
 
       if (!finished) {
@@ -56,7 +62,11 @@ class Cursor {
       }
 
       /* eslint-disable callback-return */
-      callback(this.error, this.finished && this.batchOffset === this.batch.length, this.columns, values, this.batchStart + batchOffset);
+      callback(this.error, { finished: this.finished && this.batchOffset === this.batch.length,
+        columns: this.columns,
+        values: values,
+        index: this.batchStart + batchOffset,
+        client: this.client });
       /* eslint-enable callback-return */
     };
 
