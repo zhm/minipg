@@ -26,10 +26,11 @@ export default class Cursor {
     this.nextBatch(() => {
       /* eslint-disable callback-return */
       callback(this.error,
-               this.finished,
-               this.columns,
-               this.batch,
-               this.index);
+               {finished: this.finished,
+                columns: this.columns,
+                values: this.batch,
+                index: this.index,
+                client: this.client});
       /* eslint-enable callback-return */
 
       this.index += this.batch.length;
