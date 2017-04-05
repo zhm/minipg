@@ -23,31 +23,34 @@ class Cursor {
       let index = _ref.index;
       let client = _ref.client;
 
-      /* eslint-disable callback-return */
-      callback(err, { finished: finished, columns: columns, values: values, index: index, client: client });
-      /* eslint-enable callback-return */
+      const done = () => {
+        if (!finished) {
+          this.each(callback);
+        }
+      };
 
-      if (!finished) {
-        this.each(callback);
-      }
+      callback(err, { finished: finished, columns: columns, values: values, index: index, client: client, done: done });
     });
   }
 
   eachBatch(callback) {
     this.nextBatch(() => {
+      const done = () => {
+        this.index += this.batch.length;
+
+        if (!this.finished) {
+          this.eachBatch(callback);
+        }
+      };
+
       /* eslint-disable callback-return */
       callback(this.error, { finished: this.finished,
         columns: this.columns,
         values: this.batch,
         index: this.index,
-        client: this.client });
+        client: this.client,
+        done: done });
       /* eslint-enable callback-return */
-
-      this.index += this.batch.length;
-
-      if (!this.finished) {
-        this.eachBatch(callback);
-      }
     });
   }
 
