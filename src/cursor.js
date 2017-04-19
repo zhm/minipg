@@ -45,10 +45,10 @@ export default class Cursor {
   }
 
   next(callback) {
+    this._index = this._index != null ? this._index : 0;
+
     const processResult = () => {
       let values = null;
-
-      const batchOffset = this.batchOffset;
 
       if (this.batch.length) {
         const row = this.batch[this.batchOffset];
@@ -63,8 +63,10 @@ export default class Cursor {
                {finished: this.finished && this.batchOffset === this.batch.length,
                 columns: this.columns,
                 values: values,
-                index: this.batchStart + batchOffset,
+                index: this._index,
                 client: this.client});
+
+      this._index++;
       /* eslint-enable callback-return */
     };
 
