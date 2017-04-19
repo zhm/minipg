@@ -17,11 +17,11 @@ class Cursor {
 
   each(callback) {
     this.next((err, _ref) => {
-      let finished = _ref.finished;
-      let columns = _ref.columns;
-      let values = _ref.values;
-      let index = _ref.index;
-      let client = _ref.client;
+      let finished = _ref.finished,
+          columns = _ref.columns,
+          values = _ref.values,
+          index = _ref.index,
+          client = _ref.client;
 
       const done = () => {
         if (!finished) {
@@ -55,10 +55,10 @@ class Cursor {
   }
 
   next(callback) {
+    this._index = this._index != null ? this._index : 0;
+
     const processResult = () => {
       let values = null;
-
-      const batchOffset = this.batchOffset;
 
       if (this.batch.length) {
         const row = this.batch[this.batchOffset];
@@ -72,8 +72,10 @@ class Cursor {
       callback(this.error, { finished: this.finished && this.batchOffset === this.batch.length,
         columns: this.columns,
         values: values,
-        index: this.batchStart + batchOffset,
+        index: this._index,
         client: this.client });
+
+      this._index++;
       /* eslint-enable callback-return */
     };
 
