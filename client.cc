@@ -13,7 +13,7 @@ void Client::NoticeProcessor(void *arg, const char *message) {
       Nan::New(message).ToLocalChecked()
     };
 
-    client->noticeProcessor_->Call(1, argv);
+    Nan::Call(*client->noticeProcessor_, 1, argv);
   } else {
     fprintf(stderr, "%s", message);
   }
@@ -47,9 +47,11 @@ void Client::Init(v8::Local<v8::Object> exports) {
   Nan::SetPrototypeMethod(tpl, "finished", IsFinished);
   Nan::SetPrototypeMethod(tpl, "setNoticeProcessor", SetNoticeProcessor);
 
-  constructor.Reset(tpl->GetFunction());
+  auto function = Nan::GetFunction(tpl).ToLocalChecked();
 
-  exports->Set(Nan::New("Client").ToLocalChecked(), tpl->GetFunction());
+  constructor.Reset(function);
+
+  Nan::Set(exports, Nan::New("Client").ToLocalChecked(), function);
 }
 
 NAN_METHOD(Client::New) {
@@ -61,7 +63,7 @@ NAN_METHOD(Client::New) {
     const int argc = 1;
     v8::Local<v8::Value> argv[argc] = { info[0] };
     v8::Local<v8::Function> cons = Nan::New<v8::Function>(constructor);
-    info.GetReturnValue().Set(cons->NewInstance(argc, argv));
+    info.GetReturnValue().Set(Nan::NewInstance(cons, argc, argv).ToLocalChecked());
   }
 }
 
