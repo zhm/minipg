@@ -1,6 +1,6 @@
 {
   "name": "minipg",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "PostgreSQL bindings for Nodejs using row-by-row access",
   "homepage": "http://github.com/zhm/minipg",
   "main": "dist/index.js",
@@ -35,13 +35,13 @@
     "eslint-config-fulcrum": "^1.0.1",
     "eslint-plugin-react": "^5.1.1",
     "mocha": "^2.4.5",
+    "node-gyp": "^5.0.2",
     "prettysize": "0.0.3"
   },
   "dependencies": {
     "bindings": "^1.2.1",
     "generic-pool": "^2.4.2",
-    "nan": "^2.3.3",
-    "node-gyp": "^3.3.1"
+    "nan": "^2.3.3"
   },
   "keywords": [
     "postgres",
