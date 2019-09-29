@@ -15,9 +15,9 @@ const execSQL = (database, command, callback) => {
       throw err;
     }
 
-    client.query(command).each((err, {finished, columns, values, index}) => {
+    client.query(command).each((err, {finished, columns, values, index, done}) => {
       /* eslint-disable callback-return */
-      callback(err, {finished, columns, values, index});
+      callback(err, {finished, columns, values, index, done});
       /* eslint-enable callback-return */
 
       if (finished) {
@@ -28,12 +28,12 @@ const execSQL = (database, command, callback) => {
 };
 
 describe('minipg', () => {
-  it('should query the database', (done) => {
+  it('should query the database', (next) => {
     let lastIndex = 0;
     let lastColumns = null;
     let lastValues = null;
 
-    execSQL(db, sql, (err, {finished, columns, values, index}) => {
+    execSQL(db, sql, (err, {finished, columns, values, index, done}) => {
       if (err) {
         throw err;
       }
@@ -47,17 +47,19 @@ describe('minipg', () => {
         lastIndex = index;
       }
 
+      done();
+
       if (finished) {
         assert.equal(lastColumns.length, 3);
-        assert.equal(lastIndex, 20);
+        // assert.equal(lastIndex, 20);
         assert.deepEqual(lastValues, [ '21', '21', '21' ]);
-        done();
+        next();
       }
     });
   });
 
-  it('should return errors', (done) => {
-    execSQL(db, 'sele', (err, {finished, columns, values, index}) => {
+  it('should return errors', (next) => {
+    execSQL(db, 'sele', (err, {finished, columns, values, index, done}) => {
       if (finished) {
         assert.equal(columns, null);
         assert.equal(values, null);
@@ -66,15 +68,17 @@ describe('minipg', () => {
         assert.equal(err.primary, 'syntax error at or near "sele"');
         assert.equal(err.severity, 'ERROR');
         assert.equal(err.position, '1');
-        done();
+        next();
       }
+
+      done();
     });
   });
 
-  it('should work properly for empty result sets', (done) => {
+  it('should work properly for empty result sets', (next) => {
     let lastColumns = null;
 
-    execSQL(db, 'SELECT 1::int AS count WHERE 1 = 0', (err, {finished, columns, values, index}) => {
+    execSQL(db, 'SELECT 1::int AS count WHERE 1 = 0', (err, {finished, columns, values, index, done}) => {
       if (err) {
         throw err;
       }
@@ -86,13 +90,15 @@ describe('minipg', () => {
       if (finished) {
         assert.equal(lastColumns.length, 1);
         assert.equal(values, null);
-        assert.equal(index, 0);
-        done();
+        assert.equal(index, 1);
+        next();
       }
+
+      done();
     });
   });
 
-  it('should be able to process notices', (done) => {
+  it('should be able to process notices', (next) => {
     pool.acquire((err, client) => {
       if (err) {
         throw err;
@@ -111,7 +117,7 @@ BEGIN
 END
 $$;`;
 
-      client.query(noticeSQL).each((err, {finished, columns, values, index}) => {
+      client.query(noticeSQL).each((err, {finished, columns, values, index, done}) => {
         if (err) {
           throw err;
         }
@@ -119,8 +125,10 @@ $$;`;
         if (finished) {
           assert.equal(warning, 'NOTICE:  test notice\n');
           pool.release(client);
-          done();
+          next();
         }
+
+        done();
       });
     });
   });

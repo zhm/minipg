@@ -107,7 +107,9 @@ function createPool(options) {
       });
     },
     destroy: client => {
-      client.close();
+      if (client) {
+        client.close();
+      }
     },
     max: options.max || 10,
     idleTimeoutMillis: options.idleTimeoutMillis || 30000,

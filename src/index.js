@@ -87,14 +87,16 @@ export function createPool(options) {
     create: (callback) => {
       new Client().connect(options.db, (err, client) => {
         if (err) {
-          return callback(client ? client.lastError : err);
+          return callback(client ? (client.lastError || err) : err);
         }
 
         return callback(null, client);
       });
     },
     destroy: (client) => {
-      client.close();
+      if (client) {
+        client.close();
+      }
     },
     max: options.max || 10,
     idleTimeoutMillis: options.idleTimeoutMillis || 30000,
