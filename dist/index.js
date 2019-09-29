@@ -100,7 +100,7 @@ function createPool(options) {
     create: callback => {
       new Client().connect(options.db, (err, client) => {
         if (err) {
-          return callback(client ? client.lastError : err);
+          return callback(client ? client.lastError || err : err);
         }
 
         return callback(null, client);
