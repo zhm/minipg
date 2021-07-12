@@ -4,10 +4,10 @@ import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
 
-const db = 'dbname = postgres';
+const db = 'host = localhost, dbname = postgres';
 const sql = fs.readFileSync(path.join(__dirname, 'test.sql')).toString();
 
-const pool = createPool({db: db});
+const pool = createPool({db: db, max: 1});
 
 const execSQL = (database, command, callback) => {
   pool.acquire((err, client) => {
@@ -15,19 +15,27 @@ const execSQL = (database, command, callback) => {
       throw err;
     }
 
-    client.query(command).each((err, {finished, columns, values, index, done}) => {
-      /* eslint-disable callback-return */
-      callback(err, {finished, columns, values, index, done});
-      /* eslint-enable callback-return */
+    try {
+      client.query(command).each((err, {finished, columns, values, index, done}) => {
+        if (finished) {
+          pool.release(client);
+        }
 
-      if (finished) {
-        pool.release(client);
-      }
-    });
+        /* eslint-disable callback-return */
+        callback(err, {finished, columns, values, index, done});
+        /* eslint-enable callback-return */
+      });
+    } catch (ex) {
+      pool.release(client);
+
+      callback(null, { finished: true, done: () => {} });
+    }
   });
 };
 
-describe('minipg', () => {
+describe('minipg', function() {
+  this.timeout(20000);
+
   it('should query the database', (next) => {
     let lastIndex = 0;
     let lastColumns = null;
@@ -35,6 +43,7 @@ describe('minipg', () => {
 
     execSQL(db, sql, (err, {finished, columns, values, index, done}) => {
       if (err) {
+        done();
         throw err;
       }
 
@@ -80,6 +89,7 @@ describe('minipg', () => {
 
     execSQL(db, 'SELECT 1::int AS count WHERE 1 = 0', (err, {finished, columns, values, index, done}) => {
       if (err) {
+        done();
         throw err;
       }
 
@@ -88,7 +98,7 @@ describe('minipg', () => {
       }
 
       if (finished) {
-        assert.equal(lastColumns.length, 1);
+        assert.equal(lastColumns && lastColumns.length, 1);
         assert.equal(values, null);
         assert.equal(index, 1);
         next();
@@ -119,6 +129,7 @@ $$;`;
 
       client.query(noticeSQL).each((err, {finished, columns, values, index, done}) => {
         if (err) {
+          done();
           throw err;
         }
 

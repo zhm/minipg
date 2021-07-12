@@ -128,11 +128,16 @@ NAN_METHOD(Client::Query) {
   client->finished_ = false;
   client->empty_ = true;
 
+  if (PQstatus(client->connection_) == CONNECTION_BAD) {
+    PQreset(client->connection_);
+  }
+
   int result = PQsendQuery(client->connection_, *commandText);
 
   client->SetLastError(nullptr);
 
   if (result != 1) {
+    client->finished_ = true;
     Nan::ThrowError(client->lastErrorMessage_.c_str());
     return;
   }
@@ -140,6 +145,7 @@ NAN_METHOD(Client::Query) {
   result = PQsetSingleRowMode(client->connection_);
 
   if (result != 1) {
+    client->finished_ = true;
     Nan::ThrowError(client->lastErrorMessage_.c_str());
     return;
   }
@@ -293,6 +299,7 @@ v8::Local<v8::Value> Client::ProcessSingleResult(bool returnMetadata) {
 void Client::Close() {
   if (connection_) {
     PQfinish(connection_);
+    finished_ = true;
     connection_ = nullptr;
   }
 }
