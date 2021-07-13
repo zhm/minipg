@@ -1,4 +1,4 @@
-# minipg [![Build Status](https://travis-ci.org/zhm/minipg.svg?branch=master)](https://travis-ci.org/zhm/minipg)
+# minipg [![Build Status](https://www.travis-ci.com/zhm/minipg.svg?branch=master)](https://www.travis-ci.com/zhm/minipg)
 
 High performance libpq bindings. The main feature is [single row mode](http://www.postgresql.org/docs/9.4/static/libpq-single-row-mode.html) to support massive result sets without consuming the entire result set into memory. [node-postgres](https://github.com/brianc/node-postgres) is the standard postgres library, but it requires the entire result set to be read into memory before processing it. There is also [pg-cursor](https://github.com/brianc/node-pg-cursor) on top of it, which helps, but it relies on server-side cursors (portals) which aren't compatible in all scenarios where session-level postgres features don't work (e.g. a production system running pgbouncer connection pooling).
 
